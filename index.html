@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kalori & Makro Takip</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="header-content">
+            <h1>🍽️ Kalori & Makro Takip</h1>
+            <div class="date-display" id="dateDisplay"></div>
+        </div>
+        <div class="header-actions">
+            <button class="icon-btn" id="settingsBtn" title="Ayarlar">⚙️</button>
+            <button class="icon-btn" id="darkModeBtn" title="Açık Mod">☀️</button>
+        </div>
+    </header>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⚙️ Ayarlar</h2>
+                <button class="modal-close" id="closeSettings">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-group">
+                    <label for="targetKcal">Günlük Kalori Hedefi</label>
+                    <input type="number" id="targetKcal" min="1000" max="5000" step="100" value="2200">
+                </div>
+                <div class="settings-group">
+                    <label for="targetProtein">Protein Hedefi (g)</label>
+                    <input type="number" id="targetProtein" min="50" max="300" step="10" value="150">
+                </div>
+                <div class="settings-group">
+                    <label for="targetCarb">Karbonhidrat Hedefi (g)</label>
+                    <input type="number" id="targetCarb" min="50" max="500" step="10" value="250">
+                </div>
+                <div class="settings-group">
+                    <label for="targetFat">Yağ Hedefi (g)</label>
+                    <input type="number" id="targetFat" min="20" max="200" step="5" value="70">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelSettings">İptal</button>
+                <button class="btn btn-primary" id="saveSettings">Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <p>Yükleniyor...</p>
+    </div>
+
+    <div class="error-message" id="errorMessage" style="display: none;"></div>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="main-content">
+
+            <!-- Left Column -->
+            <div class="left-column">
+                <!-- Calorie Summary Card -->
+                <section class="summary-card">
+                    <div class="calorie-display">
+                        <div class="calorie-header">
+                            <span class="calorie-label">Günlük Kalori</span>
+                        </div>
+                        <div class="calorie-values">
+                            <span class="calorie-current" id="currentKcal">0</span>
+                            <span class="calorie-target">/ <span id="targetKcalDisplay">2200</span></span>
+                        </div>
+                        <div class="calorie-bar-container">
+                            <div class="calorie-bar" id="calorieBar" style="width: 0%"></div>
+                        </div>
+                        <div id="remainingKcal" class="calorie-remaining">Kalan: 2200 kcal</div>
+                    </div>
+                </section>
+
+                <!-- Macro Bars Card -->
+                <section class="stats-card">
+                    <div class="stats-header">
+                        <span class="stats-icon">🎯</span>
+                        <h2>Günlük Hedefler</h2>
+                        <div class="goal-count" id="goalCount" style="display: none;">0 gün 🔥</div>
+                    </div>
+
+                    <div class="macro-list">
+                        <div class="macro-item">
+                            <div class="macro-header">
+                                <span class="macro-label">Protein</span>
+                                <span class="macro-value" id="proteinValue">0 / 150g</span>
+                            </div>
+                            <div class="macro-bar-container">
+                                <div class="macro-bar protein-bar" id="proteinBar" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <div class="macro-item">
+                            <div class="macro-header">
+                                <span class="macro-label">Karbonhidrat</span>
+                                <span class="macro-value" id="carbValue">0 / 250g</span>
+                            </div>
+                            <div class="macro-bar-container">
+                                <div class="macro-bar carb-bar" id="carbBar" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <div class="macro-item">
+                            <div class="macro-header">
+                                <span class="macro-label">Yağ</span>
+                                <span class="macro-value" id="fatValue">0 / 70g</span>
+                            </div>
+                            <div class="macro-bar-container">
+                                <div class="macro-bar fat-bar" id="fatBar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Right Column -->
+            <div class="right-column">
+                <!-- Motivation Card -->
+                <section class="motivation-card">
+                    <div class="motivation-text" id="motivationText">
+                        Yükleniyor...
+                    </div>
+                </section>
+
+                <!-- Chart Section -->
+                <section class="chart-section">
+                    <h2>📊 Son 7 Gün</h2>
+                    <div class="chart-container" id="chartContainer">
+                        <div class="chart-loading">Yükleniyor...</div>
+                    </div>
+                </section>
+
+                <!-- Tabs -->
+                <div class="tabs-container">
+                    <button class="tab-button active" onclick="switchTab('logs')">📝 Kayıtlar</button>
+                    <button class="tab-button" onclick="switchTab('add')">➕ Yeni Ekle</button>
+                </div>
+
+                <!-- Logs Tab -->
+                <div id="logs-tab" class="tab-content active">
+                    <section class="logs-section">
+                        <div class="logs-container" id="logsContainer">
+                            <div class="logs-loading">Yükleniyor...</div>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Add Tab -->
+                <div id="add-tab" class="tab-content">
+                    <section class="add-section">
+                        <div class="add-form">
+                            <div class="form-group">
+                                <label>Ürün Tipi</label>
+                                <div class="radio-group radio-group-3">
+                                    <label class="radio-label">
+                                        <input type="radio" name="itemType" value="food" checked>
+                                        <span>Yiyecek</span>
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="itemType" value="drink">
+                                        <span>İçecek</span>
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="itemType" value="custom">
+                                        <span>Özel</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Preset Section -->
+                            <div id="preset-section">
+                                <div class="form-group">
+                                    <label for="searchInput">Ürün Ara</label>
+                                    <input type="text" id="searchInput" placeholder="Ürün adı yazın..." autocomplete="off">
+                                    <div class="dropdown" id="dropdown"></div>
+                                </div>
+                            </div>
+
+                            <!-- Custom Section -->
+                            <div id="custom-section" style="display: none;">
+                                <div class="form-group">
+                                    <label for="customName">Ürün Adı ve Tipi</label>
+                                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px;">
+                                        <input type="text" id="customName" placeholder="Örn: Ev Yapımı Yemek">
+                                        <select id="customType" style="padding: 14px 16px; background: var(--bg-secondary); border: 2px solid var(--bg-card-hover); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem; font-weight: 500; transition: all 0.2s ease;">
+                                            <option value="food">Yiyecek</option>
+                                            <option value="drink">İçecek</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="custom-macros-grid">
+                                    <div class="form-group">
+                                        <label for="customKcal">Kalori</label>
+                                        <input type="number" id="customKcal" placeholder="0" min="0">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="customProtein">Protein (g)</label>
+                                        <input type="number" id="customProtein" placeholder="0" min="0" step="0.1">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="customCarb">Karb (g)</label>
+                                        <input type="number" id="customCarb" placeholder="0" min="0" step="0.1">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="customFat">Yağ (g)</label>
+                                        <input type="number" id="customFat" placeholder="0" min="0" step="0.1">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Amount Input -->
+                            <div class="form-group">
+                                <label for="gramsInput" id="amountLabel">Miktar (gram)</label>
+                                <input type="number" id="gramsInput" placeholder="100" min="1">
+                            </div>
+
+                            <!-- Preview -->
+                            <div class="calculation-preview" id="calculationPreview" style="display: none;">
+                                <div class="preview-grid">
+                                    <div class="preview-item">
+                                        <div class="preview-label">Kalori</div>
+                                        <div class="preview-value" id="previewKcal">0</div>
+                                    </div>
+                                    <div class="preview-item">
+                                        <div class="preview-label">Protein</div>
+                                        <div class="preview-value" id="previewProtein">0g</div>
+                                    </div>
+                                    <div class="preview-item">
+                                        <div class="preview-label">Karb</div>
+                                        <div class="preview-value" id="previewCarb">0g</div>
+                                    </div>
+                                    <div class="preview-item">
+                                        <div class="preview-label">Yağ</div>
+                                        <div class="preview-value" id="previewFat">0g</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Add Button -->
+                            <button class="btn-add" id="addButton">Ekle</button>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+    <script>
+        // Tab switching functionality
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Find the button that was clicked
+            const clickedBtn = Array.from(document.querySelectorAll('.tab-button')).find(
+                btn => btn.textContent.includes(tabName === 'logs' ? 'Kayıtlar' : 'Yeni Ekle')
+            );
+            if (clickedBtn) clickedBtn.classList.add('active');
+
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tabName + '-tab').classList.add('active');
+        }
+    </script>
+</body>
+</html>
