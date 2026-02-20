@@ -155,6 +155,12 @@ const TARGETS = {
 };
 ```
 
+## Yeni Özellikler (v2)
+
+- **Profil & Hedef Öneri:** Ayarlar'dan cinsiyet, yaş, boy, kilo ve aktivite seviyesi girerek Mifflin-St Jeor formülüne dayalı kalori/makro hedefi hesaplatabilirsiniz. Profil girilmese de uygulama eskisi gibi çalışmaya devam eder.
+- **Kilo Takibi & Adaptive TDEE:** Sol panelde günlük kilo girişi yaparak 7 günlük hareketli ortalama ve haftalık değişim takibi yapabilirsiniz. 10+ gün kilo ve kalori verisi olduğunda adaptive (gerçek) TDEE hesaplanır; hedeflerinizi buna göre otomatik güncelleyebilirsiniz.
+- **Yeni Besinler:** Whey protein, protein süt (250ml/500ml), yoğurt, salata/yeşillik, maden suyu gibi sık kullanılan ürünler eklendi.
+
 ## 📱 Kullanım
 
 1. Uygulamayı açın
