@@ -1589,11 +1589,18 @@ function setupMobileCollapsibles() {
         savedState = {};
     }
 
+    // Mobilde motivasyon kartını en üste taşı
+    const motivationSection = document.querySelector('.motivation-card');
+    const leftColumn = document.querySelector('.left-column');
+    if (motivationSection && leftColumn && motivationSection.parentElement !== leftColumn) {
+        leftColumn.insertBefore(motivationSection, leftColumn.firstChild);
+    }
+
     const collapsibleSections = [
+        { key: 'motivation', selector: '.motivation-card', title: 'Motivasyon', defaultOpen: true },
         { key: 'summary', selector: '.summary-card', title: 'Kalori Ozeti', defaultOpen: true },
         { key: 'goals', selector: '.stats-card', title: 'Gunluk Hedefler', defaultOpen: false },
         { key: 'weight', selector: '.weight-card', title: 'Kilo Takibi', defaultOpen: false },
-        { key: 'motivation', selector: '.motivation-card', title: 'Motivasyon', defaultOpen: false },
         { key: 'chart', selector: '.chart-section', title: 'Son 7 Gun', defaultOpen: false }
     ];
 
