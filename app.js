@@ -1,5 +1,5 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getFirestore, collection, addDoc, query, where, getDocs, deleteDoc, doc, serverTimestamp, orderBy } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getFirestore, collection, addDoc, query, where, getDocs, deleteDoc, doc, setDoc, updateDoc, serverTimestamp, orderBy } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
 import { foods } from './data/foods.js';
 import { drinks } from './data/drinks.js';
@@ -32,6 +32,327 @@ function saveTargets(targets) {
     localStorage.setItem(TARGETS_KEY, JSON.stringify(targets));
     updateSummary();
     renderChart();
+}
+
+// --- Profile & Weight Tracking ---
+const PROFILE_KEY = 'userProfile';
+const WEIGHT_LOG_KEY = 'weightLog';
+
+function loadProfile() {
+    try {
+        return JSON.parse(localStorage.getItem(PROFILE_KEY)) || {};
+    } catch { return {}; }
+}
+
+function saveProfile(profile) {
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+}
+
+function loadWeightLog() {
+    try {
+        const data = JSON.parse(localStorage.getItem(WEIGHT_LOG_KEY));
+        return Array.isArray(data) ? data : [];
+    } catch { return []; }
+}
+
+function saveWeightLog(log) {
+    localStorage.setItem(WEIGHT_LOG_KEY, JSON.stringify(log));
+}
+
+// Mifflin-St Jeor BMR
+function calcBMR(gender, weightKg, heightCm, age) {
+    const base = (10 * weightKg) + (6.25 * heightCm) - (5 * age);
+    return gender === 'male' ? base + 5 : base - 161;
+}
+
+// TDEE hesaplama
+function calcTDEE(bmr, activityMultiplier, trainingDays) {
+    let tdee = bmr * activityMultiplier;
+    // Antrenman günü başına küçük düzeltme (+150 kcal/gün ortalama)
+    if (trainingDays && trainingDays > 0) {
+        tdee += (trainingDays * 150) / 7;
+    }
+    return Math.round(tdee);
+}
+
+// Hedef moduna göre kalori
+function applyGoalMode(tdee, mode) {
+    const modifiers = {
+        cut_moderate: 0.85,
+        cut_aggressive: 0.75,
+        maintain: 1.0,
+        bulk: 1.10
+    };
+    return Math.round(tdee * (modifiers[mode] || 1.0));
+}
+
+// Protein önerisi (g/kg)
+function suggestProtein(weightKg, mode) {
+    const ranges = {
+        cut_moderate: [1.8, 2.2],
+        cut_aggressive: [1.8, 2.2],
+        maintain: [1.6, 2.0],
+        bulk: [1.6, 2.0]
+    };
+    const [low, high] = ranges[mode] || [1.6, 2.0];
+    const mid = (low + high) / 2;
+    return Math.round(weightKg * mid);
+}
+
+// Yağ önerisi
+function suggestFat(weightKg) {
+    return Math.round(weightKg * 0.8); // 0.6 minimum ama 0.8 daha iyi default
+}
+
+// Karbonhidrat = kalan kalori
+function suggestCarb(targetKcal, proteinG, fatG) {
+    const remaining = targetKcal - (proteinG * 4) - (fatG * 9);
+    return Math.max(0, Math.round(remaining / 4));
+}
+
+// Hesapla ve göster
+function calculateAndShowGoals() {
+    const gender = document.getElementById('profileGender').value;
+    const age = parseInt(document.getElementById('profileAge').value);
+    const height = parseFloat(document.getElementById('profileHeight').value);
+    const weight = parseFloat(document.getElementById('profileWeight').value);
+    const activity = parseFloat(document.getElementById('profileActivity').value);
+    const trainingDays = parseInt(document.getElementById('profileTrainingDays').value) || 0;
+    const goalMode = document.getElementById('profileGoalMode').value;
+
+    if (!gender || !age || !height || !weight) {
+        alert('Lütfen cinsiyet, yaş, boy ve kilo bilgilerini girin.');
+        return;
+    }
+
+    // Profili kaydet
+    const profile = { gender, age, height, weight, activity, trainingDays, goalMode,
+        steps: parseInt(document.getElementById('profileSteps').value) || 0 };
+    saveProfile(profile);
+
+    const bmr = calcBMR(gender, weight, height, age);
+    const tdee = calcTDEE(bmr, activity, trainingDays);
+    const targetKcal = applyGoalMode(tdee, goalMode);
+    const protein = suggestProtein(weight, goalMode);
+    const fat = suggestFat(weight);
+    const carb = suggestCarb(targetKcal, protein, fat);
+
+    // Hedef alanlarına doldur
+    document.getElementById('targetKcal').value = targetKcal;
+    document.getElementById('targetProtein').value = protein;
+    document.getElementById('targetFat').value = fat;
+    document.getElementById('targetCarb').value = carb;
+
+    // Öneri kutusunu göster
+    const modeLabels = {
+        cut_moderate: 'Yağ Yakım (Sürdürülebilir)',
+        cut_aggressive: 'Yağ Yakım (Agresif)',
+        maintain: 'Koruma',
+        bulk: 'Kas Artışı'
+    };
+
+    const recEl = document.getElementById('goalRecommendation');
+    const recContent = document.getElementById('goalRecContent');
+    recContent.innerHTML = `
+        BMR: <strong>${Math.round(bmr)} kcal</strong> |
+        TDEE: <strong>${tdee} kcal</strong><br>
+        Mod: <strong>${modeLabels[goalMode]}</strong><br>
+        Kalori: <strong>${targetKcal} kcal</strong> ·
+        Protein: <strong>${protein}g</strong> ·
+        Yağ: <strong>${fat}g</strong> ·
+        Karb: <strong>${carb}g</strong>
+    `;
+    recEl.style.display = 'block';
+}
+
+// 7 günlük hareketli ortalama hesapla
+function calcMovingAverage(entries, days) {
+    if (entries.length < days) return null;
+    const recent = entries.slice(-days);
+    const sum = recent.reduce((a, e) => a + e.weight, 0);
+    return sum / days;
+}
+
+// Adaptive TDEE hesaplama
+function calcAdaptiveTDEE(weightEntries, calorieLogs) {
+    if (weightEntries.length < 10) return null; // Yetersiz veri
+
+    // Son 14 gün (en az 10)
+    const sorted = [...weightEntries].sort((a, b) => a.date.localeCompare(b.date));
+    const last14 = sorted.slice(-14);
+    if (last14.length < 10) return null;
+
+    // 7 günlük ortalamalarla başlangıç-bitiş farkı
+    const firstWeek = last14.slice(0, 7);
+    const lastWeek = last14.slice(-7);
+    const avgFirst = firstWeek.reduce((s, e) => s + e.weight, 0) / firstWeek.length;
+    const avgLast = lastWeek.reduce((s, e) => s + e.weight, 0) / lastWeek.length;
+    const deltaKg = avgLast - avgFirst;
+    const daySpan = last14.length;
+
+    // Haftalık kilo değişimi
+    const weeklyChange = (deltaKg / daySpan) * 7;
+
+    // Enerji farkı: 1 kg yağ ~ 7700 kcal
+    const weeklyEnergyDiff = weeklyChange * 7700;
+    const dailyEnergyDiff = weeklyEnergyDiff / 7;
+
+    // Son 14 gün ortalama kalori alımı
+    const dateRange = last14.map(e => e.date);
+    const startDate = dateRange[0];
+    const endDate = dateRange[dateRange.length - 1];
+
+    let totalIntake = 0;
+    let intakeDays = 0;
+    // calorieLogs: weekLogs gibi [{date, kcal, ...}] formatında
+    const dateSet = new Set(dateRange);
+    const dailyIntake = {};
+    calorieLogs.forEach(log => {
+        if (log.date >= startDate && log.date <= endDate) {
+            dailyIntake[log.date] = (dailyIntake[log.date] || 0) + log.kcal;
+        }
+    });
+
+    for (const d of dateSet) {
+        if (dailyIntake[d] !== undefined && dailyIntake[d] > 0) {
+            totalIntake += dailyIntake[d];
+            intakeDays++;
+        }
+    }
+
+    if (intakeDays < 7) return null; // Yetersiz kalori verisi
+
+    const avgIntake = totalIntake / intakeDays;
+    let adaptiveTDEE = Math.round(avgIntake + dailyEnergyDiff);
+
+    // Güvenlik: BMR altına düşmesin
+    const profile = loadProfile();
+    if (profile.gender && profile.weight && profile.height && profile.age) {
+        const bmr = calcBMR(profile.gender, profile.weight, profile.height, profile.age);
+        adaptiveTDEE = Math.max(adaptiveTDEE, Math.round(bmr));
+        // Çok uç çıkmasın (BMR * 2.5 üstü olmasın)
+        adaptiveTDEE = Math.min(adaptiveTDEE, Math.round(bmr * 2.5));
+    }
+
+    return { adaptiveTDEE, weeklyChange, avgIntake: Math.round(avgIntake) };
+}
+
+// Kilo takibi UI güncelleme
+function renderWeightSection() {
+    const entries = loadWeightLog().sort((a, b) => b.date.localeCompare(a.date));
+    const listEl = document.getElementById('weightLogList');
+    const statsEl = document.getElementById('weightStats');
+    const adaptiveBtn = document.getElementById('updateGoalsAdaptive');
+
+    // Son 14 gün listesi
+    const recent14 = entries.slice(0, 14);
+    if (recent14.length === 0) {
+        listEl.innerHTML = '<div class="weight-no-data">Henüz kilo kaydı yok.</div>';
+        statsEl.style.display = 'none';
+        adaptiveBtn.style.display = 'none';
+        return;
+    }
+
+    listEl.innerHTML = recent14.map(e => `
+        <div class="weight-log-item">
+            <span class="weight-log-date">${formatDate(e.date)}</span>
+            <span class="weight-log-value">${e.weight} kg</span>
+            <button class="weight-log-delete" data-date="${e.date}" title="Sil">✕</button>
+        </div>
+    `).join('');
+
+    // Silme butonları
+    listEl.querySelectorAll('.weight-log-delete').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const date = btn.dataset.date;
+            const log = loadWeightLog().filter(e => e.date !== date);
+            saveWeightLog(log);
+            renderWeightSection();
+        });
+    });
+
+    // İstatistikler
+    const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+
+    // 7 günlük ortalama
+    const avg7 = calcMovingAverage(sorted, Math.min(7, sorted.length));
+    document.getElementById('weightAvg7').textContent = avg7 ? `${avg7.toFixed(1)} kg` : '-';
+
+    // Haftalık değişim
+    if (sorted.length >= 7) {
+        const first7 = sorted.slice(0, Math.min(7, Math.floor(sorted.length / 2)));
+        const last7 = sorted.slice(-7);
+        const avgF = first7.reduce((s, e) => s + e.weight, 0) / first7.length;
+        const avgL = last7.reduce((s, e) => s + e.weight, 0) / last7.length;
+        const delta = avgL - avgF;
+        const daysBetween = sorted.length;
+        const weeklyDelta = (delta / daysBetween) * 7;
+        const sign = weeklyDelta >= 0 ? '+' : '';
+        document.getElementById('weightChange').textContent = `${sign}${weeklyDelta.toFixed(2)} kg/hafta`;
+    } else {
+        document.getElementById('weightChange').textContent = '-';
+    }
+
+    statsEl.style.display = 'grid';
+
+    // Adaptive TDEE
+    loadExtendedLogsForAdaptive(sorted);
+}
+
+// Genişletilmiş logları yükle (14 gün) ve adaptive TDEE hesapla
+async function loadExtendedLogsForAdaptive(weightEntries) {
+    const tdeeEl = document.getElementById('adaptiveTdee');
+    const adaptiveBtn = document.getElementById('updateGoalsAdaptive');
+
+    if (weightEntries.length < 10) {
+        tdeeEl.textContent = 'Yetersiz veri';
+        adaptiveBtn.style.display = 'none';
+        return;
+    }
+
+    try {
+        // Son 14 günlük kalori verisi
+        const sorted = [...weightEntries].sort((a, b) => a.date.localeCompare(b.date));
+        const startDate = sorted[Math.max(0, sorted.length - 14)].date;
+
+        const q = query(
+            collection(db, 'daily_logs'),
+            where('date', '>=', startDate),
+            orderBy('date')
+        );
+        const snap = await getDocs(q);
+        const logs = [];
+        snap.forEach(d => logs.push(d.data()));
+
+        const result = calcAdaptiveTDEE(weightEntries, logs);
+        if (!result) {
+            tdeeEl.textContent = 'Yetersiz veri';
+            adaptiveBtn.style.display = 'none';
+            return;
+        }
+
+        tdeeEl.textContent = `${result.adaptiveTDEE} kcal`;
+        adaptiveBtn.style.display = 'block';
+
+        // "Hedefleri Güncelle" butonu
+        adaptiveBtn.onclick = () => {
+            const profile = loadProfile();
+            const mode = profile.goalMode || 'maintain';
+            const newKcal = applyGoalMode(result.adaptiveTDEE, mode);
+            const protein = suggestProtein(profile.weight || 75, mode);
+            const fat = suggestFat(profile.weight || 75);
+            const carb = suggestCarb(newKcal, protein, fat);
+
+            saveTargets({ kcal: newKcal, protein, carb, fat });
+            document.getElementById('targetKcalDisplay').textContent = newKcal;
+            alert(`Hedefler güncellendi! Adaptive TDEE: ${result.adaptiveTDEE} kcal → Hedef: ${newKcal} kcal`);
+            renderWeightSection();
+        };
+    } catch (error) {
+        console.warn('Adaptive TDEE hesaplanamadı:', error);
+        tdeeEl.textContent = '-';
+        adaptiveBtn.style.display = 'none';
+    }
 }
 
 // Global state
@@ -900,6 +1221,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('targetCarb').value = TARGETS.carb;
         document.getElementById('targetFat').value = TARGETS.fat;
 
+        // Load profile values
+        const prof = loadProfile();
+        if (prof.gender) document.getElementById('profileGender').value = prof.gender;
+        if (prof.age) document.getElementById('profileAge').value = prof.age;
+        if (prof.height) document.getElementById('profileHeight').value = prof.height;
+        if (prof.weight) document.getElementById('profileWeight').value = prof.weight;
+        if (prof.activity) document.getElementById('profileActivity').value = prof.activity;
+        if (prof.trainingDays) document.getElementById('profileTrainingDays').value = prof.trainingDays;
+        if (prof.steps) document.getElementById('profileSteps').value = prof.steps;
+        if (prof.goalMode) document.getElementById('profileGoalMode').value = prof.goalMode;
+
+        // Öneri kutusunu gizle (yeniden hesaplanması gerekir)
+        document.getElementById('goalRecommendation').style.display = 'none';
+
         settingsModal.classList.add('active');
     });
 
@@ -920,6 +1255,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
 
         saveTargets(newTargets);
+
+        // Profil bilgilerini de kaydet
+        const gender = document.getElementById('profileGender').value;
+        if (gender) {
+            const prof = {
+                gender,
+                age: parseInt(document.getElementById('profileAge').value) || 0,
+                height: parseFloat(document.getElementById('profileHeight').value) || 0,
+                weight: parseFloat(document.getElementById('profileWeight').value) || 0,
+                activity: parseFloat(document.getElementById('profileActivity').value) || 1.2,
+                trainingDays: parseInt(document.getElementById('profileTrainingDays').value) || 0,
+                steps: parseInt(document.getElementById('profileSteps').value) || 0,
+                goalMode: document.getElementById('profileGoalMode').value
+            };
+            saveProfile(prof);
+        }
 
         // Update UI
         document.getElementById('targetKcalDisplay').textContent = newTargets.kcal;
@@ -955,4 +1306,48 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Update calorie target display on load
     document.getElementById('targetKcalDisplay').textContent = TARGETS.kcal;
+
+    // --- Profil: Ayarlar modal'ına yükle ---
+    const profile = loadProfile();
+    if (profile.gender) document.getElementById('profileGender').value = profile.gender;
+    if (profile.age) document.getElementById('profileAge').value = profile.age;
+    if (profile.height) document.getElementById('profileHeight').value = profile.height;
+    if (profile.weight) document.getElementById('profileWeight').value = profile.weight;
+    if (profile.activity) document.getElementById('profileActivity').value = profile.activity;
+    if (profile.trainingDays) document.getElementById('profileTrainingDays').value = profile.trainingDays;
+    if (profile.steps) document.getElementById('profileSteps').value = profile.steps;
+    if (profile.goalMode) document.getElementById('profileGoalMode').value = profile.goalMode;
+
+    // Hedefleri Hesapla butonu
+    document.getElementById('calculateGoals').addEventListener('click', calculateAndShowGoals);
+
+    // --- Kilo Takibi ---
+    const weightDateInput = document.getElementById('weightDate');
+    weightDateInput.value = getToday();
+
+    document.getElementById('saveWeight').addEventListener('click', () => {
+        const weight = parseFloat(document.getElementById('weightInput').value);
+        const date = document.getElementById('weightDate').value;
+        if (!weight || weight < 30 || weight > 250) {
+            alert('Geçerli bir kilo girin (30-250 kg).');
+            return;
+        }
+        if (!date) {
+            alert('Tarih seçin.');
+            return;
+        }
+        const log = loadWeightLog();
+        // Aynı tarih varsa güncelle
+        const idx = log.findIndex(e => e.date === date);
+        if (idx >= 0) {
+            log[idx].weight = weight;
+        } else {
+            log.push({ date, weight });
+        }
+        saveWeightLog(log);
+        document.getElementById('weightInput').value = '';
+        renderWeightSection();
+    });
+
+    renderWeightSection();
 });
