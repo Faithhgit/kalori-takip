@@ -39,6 +39,8 @@ function saveTargets(targets) {
 // --- Profile & Weight Tracking ---
 const PROFILE_KEY = 'userProfile';
 const WEIGHT_LOG_KEY = 'weightLog';
+const WEIGHT_LOG_COLLECTION = 'weight_logs';
+let weightLogCache = [];
 
 function loadProfile() {
     try {
@@ -96,15 +98,126 @@ async function saveSettingsToCloud(targets, profile) {
     }
 }
 
-function loadWeightLog() {
+function normalizeWeightLog(entries) {
+    if (!Array.isArray(entries)) return [];
+
+    return entries
+        .filter(e => e && typeof e.date === 'string')
+        .map(e => ({
+            date: e.date,
+            weight: Number(e.weight)
+        }))
+        .filter(e => !Number.isNaN(e.weight) && e.weight >= 30 && e.weight <= 250);
+}
+
+function loadWeightLogFromLocal() {
     try {
         const data = JSON.parse(localStorage.getItem(WEIGHT_LOG_KEY));
-        return Array.isArray(data) ? data : [];
-    } catch { return []; }
+        return normalizeWeightLog(data);
+    } catch {
+        return [];
+    }
+}
+
+function saveWeightLogToLocal(log) {
+    localStorage.setItem(WEIGHT_LOG_KEY, JSON.stringify(log));
+}
+
+function loadWeightLog() {
+    if (weightLogCache.length === 0) {
+        weightLogCache = loadWeightLogFromLocal();
+    }
+    return [...weightLogCache];
 }
 
 function saveWeightLog(log) {
-    localStorage.setItem(WEIGHT_LOG_KEY, JSON.stringify(log));
+    weightLogCache = normalizeWeightLog(log);
+    saveWeightLogToLocal(weightLogCache);
+}
+
+async function fetchWeightLogFromCloud() {
+    if (!db) return [];
+
+    try {
+        const q = query(collection(db, WEIGHT_LOG_COLLECTION), orderBy('date'));
+        const snap = await getDocs(q);
+        const cloudLog = [];
+        snap.forEach((d) => {
+            const item = d.data();
+            cloudLog.push({
+                date: item.date || d.id,
+                weight: Number(item.weight)
+            });
+        });
+        return normalizeWeightLog(cloudLog);
+    } catch (error) {
+        console.warn('Cloud weight log could not be loaded:', error);
+        return [];
+    }
+}
+
+async function upsertWeightEntryToCloud(entry) {
+    if (!db) return false;
+
+    try {
+        await setDoc(doc(db, WEIGHT_LOG_COLLECTION, entry.date), {
+            date: entry.date,
+            weight: entry.weight,
+            updated_at: serverTimestamp()
+        }, { merge: true });
+        return true;
+    } catch (error) {
+        console.warn('Cloud weight log could not be saved:', error);
+        return false;
+    }
+}
+
+async function deleteWeightEntryFromCloud(date) {
+    if (!db) return false;
+
+    try {
+        await deleteDoc(doc(db, WEIGHT_LOG_COLLECTION, date));
+        return true;
+    } catch (error) {
+        console.warn('Cloud weight log could not be deleted:', error);
+        return false;
+    }
+}
+
+async function initializeWeightLog() {
+    const localLog = loadWeightLogFromLocal();
+    weightLogCache = localLog;
+
+    if (!db) return;
+
+    const cloudLog = await fetchWeightLogFromCloud();
+
+    if (cloudLog.length === 0 && localLog.length > 0) {
+        for (const entry of localLog) {
+            await upsertWeightEntryToCloud(entry);
+        }
+        return;
+    }
+
+    if (cloudLog.length > 0) {
+        const mergedByDate = new Map();
+        cloudLog.forEach(entry => mergedByDate.set(entry.date, entry));
+        localLog.forEach(entry => {
+            if (!mergedByDate.has(entry.date)) {
+                mergedByDate.set(entry.date, entry);
+            }
+        });
+
+        const merged = [...mergedByDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+        weightLogCache = merged;
+        saveWeightLogToLocal(merged);
+
+        for (const entry of localLog) {
+            if (!cloudLog.some(c => c.date === entry.date)) {
+                await upsertWeightEntryToCloud(entry);
+            }
+        }
+    }
 }
 
 // Mifflin-St Jeor BMR
@@ -311,11 +424,16 @@ function renderWeightSection() {
 
     // Silme butonları
     listEl.querySelectorAll('.weight-log-delete').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
             const date = btn.dataset.date;
             const log = loadWeightLog().filter(e => e.date !== date);
             saveWeightLog(log);
             renderWeightSection();
+
+            const cloudDeleted = await deleteWeightEntryFromCloud(date);
+            if (!cloudDeleted && db) {
+                showError('Kilo kaydı Firebase\'den silinemedi. İnternet veya Firestore kurallarını kontrol edin.');
+            }
         });
     });
 
@@ -1551,9 +1669,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load data
     await loadCustomItems();
     await loadSettingsFromCloud();
+    await initializeWeightLog();
     await loadTodayLogs();
-        await loadRecentLogs();
-        await loadWeekLogs();
+    await loadRecentLogs();
+    await loadWeekLogs();
     hideLoading();
     setupMobileCollapsibles();
     
@@ -1880,7 +1999,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const weightDateInput = document.getElementById('weightDate');
     weightDateInput.value = getToday();
 
-    document.getElementById('saveWeight').addEventListener('click', () => {
+    document.getElementById('saveWeight').addEventListener('click', async () => {
         const weight = parseFloat(document.getElementById('weightInput').value);
         const date = document.getElementById('weightDate').value;
         if (!weight || weight < 30 || weight > 250) {
@@ -1902,6 +2021,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         saveWeightLog(log);
         document.getElementById('weightInput').value = '';
         renderWeightSection();
+
+        const cloudSaved = await upsertWeightEntryToCloud({ date, weight });
+        if (!cloudSaved && db) {
+            showError('Kilo kaydı Firebase\'e kaydedilemedi. İnternet veya Firestore kurallarını kontrol edin.');
+        }
     });
 
     renderWeightSection();
