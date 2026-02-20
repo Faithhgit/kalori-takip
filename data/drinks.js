@@ -162,5 +162,30 @@ export const drinks = [
         protein_100: 0,
         carb_100: 8.5,
         fat_100: 0
+    },
+    // Pınar Protein Süt - 100ml bazında: 49 kcal, 5.2g protein, 6.5g carb, 0.3g fat
+    {
+        id: 'drink_021',
+        name: 'Protein Süt (250 ml)',
+        kcal_100: 49,
+        protein_100: 5.2,
+        carb_100: 6.5,
+        fat_100: 0.3
+    },
+    {
+        id: 'drink_022',
+        name: 'Protein Süt (500 ml)',
+        kcal_100: 49,
+        protein_100: 5.2,
+        carb_100: 6.5,
+        fat_100: 0.3
+    },
+    {
+        id: 'drink_023',
+        name: 'Maden Suyu',
+        kcal_100: 0,
+        protein_100: 0,
+        carb_100: 0,
+        fat_100: 0
     }
 ];
