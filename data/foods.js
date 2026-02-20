@@ -242,5 +242,30 @@ export const foods = [
         protein_100: 0.9,
         carb_100: 12,
         fat_100: 0.1
+    },
+    // Whey protein - 1 ölçek 25g servis, değerler 100g bazında
+    {
+        id: 'food_031',
+        name: 'Whey Protein (1 ölçek = 25g)',
+        kcal_100: 368,
+        protein_100: 86.8,
+        carb_100: 2.4,
+        fat_100: 0.8
+    },
+    {
+        id: 'food_032',
+        name: 'Yoğurt (Yarım Yağlı)',
+        kcal_100: 60,
+        protein_100: 5,
+        carb_100: 4,
+        fat_100: 2.5
+    },
+    {
+        id: 'food_033',
+        name: 'Salata / Yeşillik (Karışık)',
+        kcal_100: 30,
+        protein_100: 2,
+        carb_100: 4,
+        fat_100: 0.5
     }
 ];
