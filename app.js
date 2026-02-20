@@ -1,4 +1,4 @@
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+﻿import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getFirestore, collection, addDoc, query, where, getDocs, getDoc, deleteDoc, doc, setDoc, updateDoc, serverTimestamp, orderBy } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
 import { foods } from './data/foods.js';
@@ -208,7 +208,7 @@ function calculateAndShowGoals() {
         Kalori: <strong>${targetKcal} kcal</strong> ·
         Protein: <strong>${protein}g</strong> ·
         Yağ: <strong>${fat}g</strong> ·
-        Karb: <strong>${carb}g</strong>
+        Karbonhidrat: <strong>${carb}g</strong>
     `;
     recEl.style.display = 'block';
 }
@@ -407,7 +407,9 @@ async function loadExtendedLogsForAdaptive(weightEntries) {
 let db;
 let selectedItem = null;
 let todayLogs = [];
+let recentLogs = [];
 let weekLogs = [];
+const LOG_HISTORY_DAYS = 14;
 
 // Initialize Firebase
 try {
@@ -451,6 +453,15 @@ function getLast7Days() {
     return dates;
 }
 
+function getDateDaysAgo(daysAgo) {
+    const date = new Date();
+    date.setDate(date.getDate() - daysAgo);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 function showError(message) {
     const errorEl = document.getElementById('errorMessage');
     errorEl.textContent = message;
@@ -473,11 +484,39 @@ async function loadTodayLogs() {
             todayLogs.push({ id: doc.id, ...doc.data() });
         });
         
-        renderLogs();
         updateSummary();
     } catch (error) {
         console.error('Error loading today logs:', error);
         showError('Bugünün kayıtları yüklenirken hata oluştu.');
+    }
+}
+
+async function loadRecentLogs() {
+    try {
+        const startDate = getDateDaysAgo(LOG_HISTORY_DAYS - 1);
+        const q = query(
+            collection(db, 'daily_logs'),
+            where('date', '>=', startDate),
+            orderBy('date', 'desc')
+        );
+        const querySnapshot = await getDocs(q);
+
+        recentLogs = [];
+        querySnapshot.forEach((docSnap) => {
+            recentLogs.push({ id: docSnap.id, ...docSnap.data() });
+        });
+
+        recentLogs.sort((a, b) => {
+            if (a.date !== b.date) return b.date.localeCompare(a.date);
+            const aSec = a.created_at?.seconds || 0;
+            const bSec = b.created_at?.seconds || 0;
+            return bSec - aSec;
+        });
+
+        renderLogs();
+    } catch (error) {
+        console.error('Error loading recent logs:', error);
+        showError('Son kayÄ±tlar yÃ¼klenirken hata oluÅŸtu.');
     }
 }
 
@@ -554,6 +593,7 @@ async function addLog(item, grams) {
         
         await addDoc(collection(db, 'daily_logs'), logData);
         await loadTodayLogs();
+        await loadRecentLogs();
         await loadWeekLogs();
         
         // Reset form
@@ -572,6 +612,7 @@ async function deleteLog(logId) {
     try {
         await deleteDoc(doc(db, 'daily_logs', logId));
         await loadTodayLogs();
+        await loadRecentLogs();
         await loadWeekLogs();
     } catch (error) {
         console.error('Error deleting log:', error);
@@ -580,7 +621,7 @@ async function deleteLog(logId) {
 }
 
 async function editLog(logId) {
-    const log = todayLogs.find(l => l.id === logId);
+    const log = recentLogs.find(l => l.id === logId) || todayLogs.find(l => l.id === logId);
     if (!log) return;
 
     const newAmount = prompt(`${log.item_name} için yeni miktar (gram/ml):`, log.grams);
@@ -603,7 +644,8 @@ async function editLog(logId) {
                 fat: Math.round((log.fat || 0) * ratio * 10) / 10
             });
             await loadTodayLogs();
-            await loadWeekLogs();
+        await loadRecentLogs();
+        await loadWeekLogs();
         } catch (error) {
             console.error('Error updating log:', error);
             showError('Kayıt güncellenirken hata oluştu.');
@@ -622,6 +664,7 @@ async function editLog(logId) {
             fat: Math.round(sourceItem.fat_100 * ratio * 10) / 10
         });
         await loadTodayLogs();
+        await loadRecentLogs();
         await loadWeekLogs();
     } catch (error) {
         console.error('Error updating log:', error);
@@ -673,22 +716,24 @@ async function deleteCustomItem(itemId) {
 // Render Functions
 function renderLogs() {
     const container = document.getElementById('logsContainer');
+    const logsForList = recentLogs.length > 0 ? recentLogs : todayLogs;
 
-    if (todayLogs.length === 0) {
+    if (logsForList.length === 0) {
         container.innerHTML = '<div class="no-logs">Henüz kayıt yok. Yeni kayıt ekleyerek başlayın!</div>';
         return;
     }
 
-    container.innerHTML = todayLogs.map(log => `
+    container.innerHTML = logsForList.map(log => `
         <div class="log-item" data-id="${log.id}">
             <div class="log-info">
                 <div class="log-name">${log.item_name}</div>
                 <div class="log-details">
+                    <span class="macro-badge badge-date">${log.date === getToday() ? 'Bugün' : formatDate(log.date)}</span> ·
                     ${log.grams}g ·
-                    <span class="badge-kcal">${log.kcal} kcal</span> ·
-                    <span class="badge-protein">Protein ${log.protein}g</span>
-                    <span class="badge-carb">Karb ${log.carb}g</span>
-                    <span class="badge-fat">Yağ ${log.fat}g</span>
+                    <span class="macro-badge badge-kcal">${log.kcal} kcal</span> ·
+                    <span class="macro-badge badge-protein">Protein ${log.protein}g</span>
+                    <span class="macro-badge badge-carb">Karbonhidrat ${log.carb}g</span>
+                    <span class="macro-badge badge-fat">Yağ ${log.fat}g</span>
                 </div>
             </div>
             <div class="log-actions">
@@ -891,7 +936,7 @@ function updateMotivation() {
             if (fPct > 45) {
                 messages.push(`Makro dağılımında yağ yüksek (${pPct}/${cPct}/${fPct}). Bir sonraki öğünü daha dengeli kurabilirsin.`);
             } else if (pPct < 20 && totals.kcal > TARGETS.kcal * 0.5) {
-                messages.push(`Makro dağılımında protein oranı düşük (${pPct}/${cPct}/${fPct}). Protein kaynağı eklemek iyi olur.`);
+                messages.push(`Makro dağılımında protein oranı düşük (Protein %${pPct}, Karbonhidrat %${cPct}, Yağ %${fPct}). Protein kaynağı eklemek iyi olur.`);
             } else {
                 messages.push(`Makro dengesi iyi gidiyor (${pPct}/${cPct}/${fPct}).`);
             }
@@ -1079,7 +1124,7 @@ function renderDropdown(items, options = {}) {
                     <div class="dropdown-item-info">
                         <span class="macro-badge badge-kcal">🔥 ${item.kcal_100} kcal</span>
                         <span class="macro-badge badge-protein">Protein ${item.protein_100}g</span>
-                        <span class="macro-badge badge-carb">Karb ${item.carb_100}g</span>
+                        <span class="macro-badge badge-carb">Karbonhidrat ${item.carb_100}g</span>
                         <span class="macro-badge badge-fat">Yağ ${item.fat_100}g</span>
                     </div>
                 </div>
@@ -1196,9 +1241,9 @@ function renderCatalog() {
             </div>
             <div class="catalog-item-macros">
                 <span class="macro-badge badge-kcal">🔥 ${item.kcal_100} kcal</span>
-                <span class="macro-badge badge-protein">P ${item.protein_100}g</span>
-                <span class="macro-badge badge-carb">K ${item.carb_100}g</span>
-                <span class="macro-badge badge-fat">Y ${item.fat_100}g</span>
+                <span class="macro-badge badge-protein">Protein ${item.protein_100}g</span>
+                <span class="macro-badge badge-carb">Karbonhidrat ${item.carb_100}g</span>
+                <span class="macro-badge badge-fat">Yağ ${item.fat_100}g</span>
             </div>
         </div>
     `).join('');
@@ -1304,7 +1349,8 @@ async function applyTemplate(templateId) {
     await addLogBatch(tpl.items);
     // Tek seferde yenile
     await loadTodayLogs();
-    await loadWeekLogs();
+        await loadRecentLogs();
+        await loadWeekLogs();
     if (typeof window.switchTab === 'function') {
         window.switchTab('logs');
     }
@@ -1387,7 +1433,9 @@ function renderTplDropdown(items, searchTerm) {
             <div class="dropdown-item-name">${highlightMatch(item.name, searchTerm)}</div>
             <div class="dropdown-item-info">
                 <span class="macro-badge badge-kcal">🔥 ${item.kcal_100} kcal</span>
-                <span class="macro-badge badge-protein">P ${item.protein_100}g</span>
+                <span class="macro-badge badge-protein">Protein ${item.protein_100}g</span>
+                <span class="macro-badge badge-carb">Karbonhidrat ${item.carb_100}g</span>
+                <span class="macro-badge badge-fat">Yağ ${item.fat_100}g</span>
             </div>
         </div>
     `).join('');
@@ -1410,6 +1458,68 @@ function renderTplDropdown(items, searchTerm) {
 function closeTplDropdown() {
     document.getElementById('tplDropdown').classList.remove('active');
     tplDropdownItems = [];
+}
+
+function setupMobileCollapsibles() {
+    if (window.innerWidth > 768) return;
+
+    const MOBILE_COLLAPSE_KEY = 'mobileCollapseState';
+    let savedState = {};
+    try {
+        savedState = JSON.parse(localStorage.getItem(MOBILE_COLLAPSE_KEY)) || {};
+    } catch {
+        savedState = {};
+    }
+
+    const collapsibleSections = [
+        { key: 'summary', selector: '.summary-card', title: 'Kalori Ozeti', defaultOpen: true },
+        { key: 'goals', selector: '.stats-card', title: 'Gunluk Hedefler', defaultOpen: false },
+        { key: 'weight', selector: '.weight-card', title: 'Kilo Takibi', defaultOpen: false },
+        { key: 'motivation', selector: '.motivation-card', title: 'Motivasyon', defaultOpen: false },
+        { key: 'chart', selector: '.chart-section', title: 'Son 7 Gun', defaultOpen: false }
+    ];
+
+    collapsibleSections.forEach(({ key, selector, title, defaultOpen }) => {
+        const section = document.querySelector(selector);
+        if (!section || section.closest('.mobile-collapse')) return;
+
+        const open = typeof savedState[key] === 'boolean' ? savedState[key] : defaultOpen;
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'mobile-collapse';
+        if (!open) wrapper.classList.add('collapsed');
+
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'mobile-collapse-toggle';
+
+        const label = document.createElement('span');
+        label.textContent = title;
+
+        const indicator = document.createElement('span');
+        indicator.className = 'mobile-collapse-indicator';
+        indicator.textContent = open ? '-' : '+';
+
+        toggle.appendChild(label);
+        toggle.appendChild(indicator);
+
+        const body = document.createElement('div');
+        body.className = 'mobile-collapse-body';
+
+        section.parentNode.insertBefore(wrapper, section);
+        body.appendChild(section);
+        wrapper.appendChild(toggle);
+        wrapper.appendChild(body);
+
+        toggle.addEventListener('click', () => {
+            wrapper.classList.toggle('collapsed');
+            const isCollapsed = wrapper.classList.contains('collapsed');
+            indicator.textContent = isCollapsed ? '+' : '-';
+
+            savedState[key] = !isCollapsed;
+            localStorage.setItem(MOBILE_COLLAPSE_KEY, JSON.stringify(savedState));
+        });
+    });
 }
 
 window.renderCatalog = renderCatalog;
@@ -1442,8 +1552,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadCustomItems();
     await loadSettingsFromCloud();
     await loadTodayLogs();
-    await loadWeekLogs();
+        await loadRecentLogs();
+        await loadWeekLogs();
     hideLoading();
+    setupMobileCollapsibles();
     
     // Item type change
     document.querySelectorAll('input[name="itemType"]').forEach(radio => {
@@ -1863,3 +1975,4 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderTemplateFormItems();
     });
 });
+
