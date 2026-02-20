@@ -539,6 +539,8 @@ try {
 }
 
 // Utility Functions
+const PREVIEW_QUERY_KEY = 'preview';
+
 function getToday() {
     const now = new Date();
     const year = now.getFullYear();
@@ -578,6 +580,123 @@ function getDateDaysAgo(daysAgo) {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+}
+
+function isFuturePreviewEnabled() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get(PREVIEW_QUERY_KEY) === 'future';
+}
+
+function removeFuturePreviewQueryParam() {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has(PREVIEW_QUERY_KEY)) return;
+    params.delete(PREVIEW_QUERY_KEY);
+    const qs = params.toString();
+    const nextUrl = `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash || ''}`;
+    window.history.replaceState({}, '', nextUrl);
+}
+
+function applyFuturePreviewData() {
+    const lookupItem = (name) => foods.find(f => f.name === name) || drinks.find(d => d.name === name);
+    const createFakeLog = (entry, date, idx) => {
+        const item = lookupItem(entry.name);
+        if (!item) return null;
+        const mult = entry.grams / 100;
+        return {
+            id: `preview_${date}_${idx}`,
+            date,
+            item_id: item.id,
+            item_name: item.name,
+            grams: entry.grams,
+            kcal: Math.round(item.kcal_100 * mult),
+            protein: Math.round(item.protein_100 * mult * 10) / 10,
+            carb: Math.round(item.carb_100 * mult * 10) / 10,
+            fat: Math.round(item.fat_100 * mult * 10) / 10,
+            created_at: { seconds: Math.floor(Date.now() / 1000) - idx }
+        };
+    };
+
+    const dates = getLast7Days();
+    const templates = [
+        [
+            { name: 'Yulaf Ezmesi (Kuru)', grams: 70 },
+            { name: 'Süt (Yarım Yağlı)', grams: 250 },
+            { name: 'Tavuk Göğsü (Haşlanmış)', grams: 180 },
+            { name: 'Pirinç (Pişmiş)', grams: 220 },
+            { name: 'Ayran', grams: 300 }
+        ],
+        [
+            { name: 'Yumurta (Haşlanmış)', grams: 150 },
+            { name: 'Tam Buğday Ekmeği', grams: 90 },
+            { name: 'Dana Biftek (Izgara)', grams: 170 },
+            { name: 'Bulgur Pilavı', grams: 250 },
+            { name: 'Protein Süt (500 ml)', grams: 500 }
+        ],
+        [
+            { name: 'Süzme Yoğurt', grams: 250 },
+            { name: 'Muz', grams: 180 },
+            { name: 'Tavuk But (Izgarada)', grams: 180 },
+            { name: 'Patates (Haşlanmış)', grams: 300 },
+            { name: 'Americano', grams: 250 }
+        ],
+        [
+            { name: 'Lor Peyniri', grams: 160 },
+            { name: 'Tam Buğday Ekmeği', grams: 110 },
+            { name: 'Somon Balığı (Pişmiş)', grams: 170 },
+            { name: 'Kinoa (Pişmiş)', grams: 220 },
+            { name: 'Kefir (Icilen)', grams: 300 }
+        ],
+        [
+            { name: 'Whey Protein (1 ölçek = 25g)', grams: 25 },
+            { name: 'Muz', grams: 160 },
+            { name: 'Yagisiz Kiyma (Pismis)', grams: 180 },
+            { name: 'Beyaz Pirinc (Pismis)', grams: 240 },
+            { name: 'Ayran', grams: 250 }
+        ],
+        [
+            { name: 'Yumurta (Tavada)', grams: 140 },
+            { name: 'Simit', grams: 100 },
+            { name: 'Et Doner', grams: 220 },
+            { name: 'Salata / Yeşillik (Karışık)', grams: 220 },
+            { name: 'Sade Soda', grams: 250 }
+        ],
+        [
+            { name: 'Peynirli Omlet', grams: 170 },
+            { name: 'Tam Buğday Ekmeği', grams: 80 },
+            { name: 'Tavuk Doner', grams: 220 },
+            { name: 'Beyaz Pilav (Yagli)', grams: 230 },
+            { name: 'Protein Icecegi (Sekersiz)', grams: 330 }
+        ]
+    ];
+
+    const fakeLogs = [];
+    dates.forEach((date, dayIdx) => {
+        const template = templates[dayIdx % templates.length];
+        template.forEach((entry, entryIdx) => {
+            const log = createFakeLog(entry, date, entryIdx + (dayIdx * 10));
+            if (log) fakeLogs.push(log);
+        });
+    });
+
+    weekLogs = fakeLogs.map(({ id, ...rest }) => rest);
+    todayLogs = fakeLogs.filter(log => log.date === getToday());
+    recentLogs = [...fakeLogs].sort((a, b) => {
+        if (a.date !== b.date) return b.date.localeCompare(a.date);
+        const aSec = a.created_at?.seconds || 0;
+        const bSec = b.created_at?.seconds || 0;
+        return bSec - aSec;
+    });
+
+    updateSummary();
+    renderLogs();
+    renderChart();
+    updateMotivation();
+    updateGoalStreak();
+
+    const motivationEl = document.getElementById('motivationText');
+    motivationEl.textContent = `🔍 Önizleme modu aktif. Sahte veri ile geleceğe dönük görünüm gösteriliyor. ${motivationEl.textContent}`;
+
+    removeFuturePreviewQueryParam();
 }
 
 function showError(message) {
@@ -916,34 +1035,112 @@ function updateMacroBar(type, current, target) {
 function renderChart() {
     const container = document.getElementById('chartContainer');
     const dates = getLast7Days();
-    
-    // Group logs by date
-    const dailyTotals = {};
+
+    const dailyMap = {};
     dates.forEach(date => {
-        dailyTotals[date] = 0;
+        dailyMap[date] = 0;
     });
-    
+
     weekLogs.forEach(log => {
-        if (dailyTotals.hasOwnProperty(log.date)) {
-            dailyTotals[log.date] += log.kcal;
+        if (dailyMap.hasOwnProperty(log.date)) {
+            dailyMap[log.date] += log.kcal;
         }
     });
-    
-    const maxKcal = Math.max(...Object.values(dailyTotals), TARGETS.kcal);
-    
-    container.innerHTML = dates.map(date => {
-        const kcal = dailyTotals[date];
-        const height = maxKcal > 0 ? (kcal / maxKcal) * 100 : 0;
-        const dayName = getTurkishDayName(date);
-        const isToday = date === getToday();
-        
-        return `
-            <div class="chart-bar" style="height: ${height}%;" title="${kcal} kcal">
-                ${kcal > 0 ? `<div class="chart-bar-value">${kcal}</div>` : ''}
-                <div class="chart-bar-label">${isToday ? '<b>' + dayName + '</b>' : dayName}</div>
+
+    const dailyTotals = dates.map(date => ({ date, kcal: dailyMap[date] || 0 }));
+    const values = dailyTotals.map(d => d.kcal);
+
+    const weekTotal = values.reduce((sum, v) => sum + v, 0);
+    const weekAvg = Math.round(weekTotal / 7);
+    const activeDays = values.filter(v => v > 0).length;
+    const hitDays = values.filter(v => v >= TARGETS.kcal * 0.9 && v <= TARGETS.kcal * 1.1).length;
+
+    const maxKcal = Math.max(...values, TARGETS.kcal, 1);
+    const targetGuidePercent = Math.min((TARGETS.kcal / maxKcal) * 100, 100);
+
+    const avgDiff = weekAvg - TARGETS.kcal;
+    const avgDiffText = avgDiff === 0
+        ? 'Hedef ile birebir'
+        : avgDiff > 0
+            ? `Hedefin +${avgDiff} kcal üstü`
+            : `Hedefin ${Math.abs(avgDiff)} kcal altı`;
+
+    const bestDay = dailyTotals.reduce((best, current) => current.kcal > best.kcal ? current : best, dailyTotals[0]);
+    const bestDayText = bestDay.kcal > 0
+        ? `${getTurkishDayName(bestDay.date)} (${bestDay.kcal} kcal)`
+        : 'Henüz kayıt yok';
+
+    let trendText = 'Trend için veri birikiyor';
+    const loggedValues = values.filter(v => v > 0);
+    if (loggedValues.length >= 4) {
+        const half = Math.floor(loggedValues.length / 2);
+        const firstAvg = loggedValues.slice(0, half).reduce((a, b) => a + b, 0) / half;
+        const secondAvg = loggedValues.slice(half).reduce((a, b) => a + b, 0) / (loggedValues.length - half);
+        const trendDiff = Math.round(secondAvg - firstAvg);
+
+        if (Math.abs(trendDiff) < 80) {
+            trendText = 'Trend stabil';
+        } else if (trendDiff > 0) {
+            trendText = `Yükseliş eğilimi (+${trendDiff} kcal)`;
+        } else {
+            trendText = `Düşüş eğilimi (${trendDiff} kcal)`;
+        }
+    }
+
+    container.innerHTML = `
+        <div class="chart-dashboard">
+            <div class="chart-summary-grid">
+                <div class="chart-stat">
+                    <div class="chart-stat-label">7 Günlük Ortalama</div>
+                    <div class="chart-stat-value">${weekAvg} kcal</div>
+                    <div class="chart-stat-sub">${avgDiffText}</div>
+                </div>
+                <div class="chart-stat">
+                    <div class="chart-stat-label">Haftalık Toplam</div>
+                    <div class="chart-stat-value">${weekTotal} kcal</div>
+                    <div class="chart-stat-sub">${activeDays}/7 gün kayıtlı</div>
+                </div>
+                <div class="chart-stat">
+                    <div class="chart-stat-label">Hedefe Uyum</div>
+                    <div class="chart-stat-value">${hitDays} gün</div>
+                    <div class="chart-stat-sub">(%90-%110 aralığı)</div>
+                </div>
+                <div class="chart-stat">
+                    <div class="chart-stat-label">En Yüksek Gün</div>
+                    <div class="chart-stat-value">${bestDay.kcal > 0 ? bestDay.kcal + ' kcal' : '-'}</div>
+                    <div class="chart-stat-sub">${bestDayText}</div>
+                </div>
             </div>
-        `;
-    }).join('');
+
+            <div class="chart-meta-row">
+                <span class="chart-meta-pill">Hedef: ${TARGETS.kcal} kcal</span>
+                <span class="chart-meta-pill">${trendText}</span>
+            </div>
+
+            <div class="chart-bars-grid">
+                ${dailyTotals.map(day => {
+                    const fillPercent = day.kcal > 0
+                        ? Math.max(3, Math.min((day.kcal / maxKcal) * 100, 100))
+                        : 0;
+                    const statusClass = day.kcal > TARGETS.kcal * 1.1
+                        ? 'over'
+                        : (day.kcal > 0 && day.kcal < TARGETS.kcal * 0.9 ? 'under' : 'balanced');
+                    const isToday = day.date === getToday();
+
+                    return `
+                        <div class="chart-day-column ${isToday ? 'today' : ''}">
+                            <div class="chart-day-kcal">${day.kcal > 0 ? day.kcal : '-'}</div>
+                            <div class="chart-day-track">
+                                <div class="chart-target-guide" style="bottom:${targetGuidePercent}%"></div>
+                                <div class="chart-day-fill ${statusClass}" style="height:${fillPercent}%; min-height:${day.kcal > 0 ? '2px' : '0'}"></div>
+                            </div>
+                            <div class="chart-day-name">${getTurkishDayName(day.date)}</div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        </div>
+    `;
 }
 
 // Seri sayisini dondur (updateGoalStreak'ten bagimsiz helper)
@@ -960,6 +1157,35 @@ function getGoalStreak() {
         }
     }
     return streak;
+}
+
+const LAUNCH_MOTIVATION_LAST_KEY = 'launchMotivationLast';
+let launchMotivationMessage = null;
+
+function getLaunchMotivationMessage() {
+    if (launchMotivationMessage) return launchMotivationMessage;
+
+    const launchPool = [
+        '✨ Bu açılış senin için yeni bir başlangıç.',
+        '🚀 Bugün küçük ama net adımlarla ilerleyelim.',
+        '🎯 Odağını koru, gerisi kendiliğinden gelir.',
+        '🧩 Düzenli kayıt, doğru kararların temelidir.',
+        '🔥 Ritmini bulduğunda süreç çok daha kolay olacak.',
+        '🌿 Sade plan, güçlü sonuç: bugün bunu uygula.',
+        '🏁 Hız değil istikrar kazandırır, aynı çizgide devam.',
+        '📌 Bugünün tek işi: planı bozmadan günü kapatmak.',
+        '💡 Net veri = net ilerleme. Kayıtlarına güven.',
+        '🏆 Her iyi gün, hedefe doğru kalıcı bir yatırım.',
+        '🛠️ Mükemmel değil, sürdürülebilir olanı hedefle.',
+        '⏳ Sabır + tutarlılık = görünen sonuç.'
+    ];
+
+    const last = localStorage.getItem(LAUNCH_MOTIVATION_LAST_KEY);
+    const candidates = launchPool.filter(msg => msg !== last);
+    const source = candidates.length > 0 ? candidates : launchPool;
+    launchMotivationMessage = source[Math.floor(Math.random() * source.length)];
+    localStorage.setItem(LAUNCH_MOTIVATION_LAST_KEY, launchMotivationMessage);
+    return launchMotivationMessage;
 }
 
 function updateMotivation() {
@@ -994,6 +1220,7 @@ function updateMotivation() {
 
     const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
     const messages = [];
+    messages.push(getLaunchMotivationMessage());
     const pepTalkPool = [
         '🧭 Planlı ilerlemek, hızlı ilerlemekten daha değerlidir.',
         '🧱 Küçük adımlar üst üste geldiğinde büyük sonuç verir.',
@@ -1127,14 +1354,14 @@ function updateMotivation() {
     if (loggedDays >= 3) {
         const avgDiff = weekAvg - TARGETS.kcal;
         if (Math.abs(avgDiff) < 100) {
-            messages.push(`📊 Haftalık ort. (${weekAvg} kcal) hedefle çok uyumlu!`);
+            messages.push('📊 Haftalık gidişat hedefinle oldukça uyumlu.');
         } else if (avgDiff > 200) {
-            messages.push(`📈 Haftalık ort. (${weekAvg} kcal) hedefin biraz üstünde.`);
+            messages.push('📈 Haftalık gidişat hedefin biraz üstünde.');
         } else if (avgDiff < -200) {
-            messages.push(`📉 Haftalık ort. (${weekAvg} kcal) hedefin altında.`);
+            messages.push('📉 Haftalık gidişat hedefin altında.');
         }
     } else {
-        messages.push(`📊 7 günlük ortalama: ${weekAvg} kcal.`);
+        messages.push('📊 Haftalık değerlendirme için birkaç gün daha kayıt ekle.');
     }
 
     // Seri tebrik
@@ -1753,6 +1980,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadTodayLogs();
     await loadRecentLogs();
     await loadWeekLogs();
+    if (isFuturePreviewEnabled()) {
+        applyFuturePreviewData();
+    }
     hideLoading();
     setupMobileCollapsibles();
     

@@ -523,54 +523,141 @@ header {
 .chart-section h2 {
     font-size: 1.25rem;
     font-weight: 700;
-    margin-bottom: 24px;
+    margin-bottom: 18px;
     color: var(--text-primary);
 }
 
 .chart-container {
+    display: block;
+}
+
+.chart-dashboard {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.chart-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.chart-stat {
+    background: rgba(173, 189, 216, 0.08);
+    border: 1px solid rgba(173, 189, 216, 0.16);
+    border-radius: 12px;
+    padding: 10px 12px;
+}
+
+.chart-stat-label {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.chart-stat-value {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1.2;
+}
+
+.chart-stat-sub {
+    margin-top: 4px;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+
+.chart-meta-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.chart-meta-pill {
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: rgba(129, 156, 255, 0.12);
+    border: 1px solid rgba(129, 156, 255, 0.2);
+}
+
+.chart-bars-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 8px;
+    align-items: end;
+    padding-top: 4px;
+}
+
+.chart-day-column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.chart-day-column.today .chart-day-name {
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
+.chart-day-kcal {
+    font-size: 0.74rem;
+    color: var(--text-secondary);
+    font-weight: 700;
+    min-height: 16px;
+}
+
+.chart-day-track {
+    width: 100%;
+    height: 150px;
+    border-radius: 10px;
+    position: relative;
+    background: linear-gradient(180deg, rgba(173, 189, 216, 0.08) 0%, rgba(173, 189, 216, 0.03) 100%);
+    border: 1px solid rgba(173, 189, 216, 0.14);
+    overflow: hidden;
     display: flex;
     align-items: flex-end;
-    justify-content: space-around;
-    height: 180px;
-    padding: 16px 0;
-    gap: 8px;
 }
 
-.chart-bar {
-    flex: 1;
-    background: var(--accent-secondary);
+.chart-target-guide {
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    height: 1px;
+    border-top: 1px dashed rgba(243, 190, 85, 0.8);
+    opacity: 0.85;
+    pointer-events: none;
+}
+
+.chart-day-fill {
+    width: 100%;
     border-radius: 8px 8px 0 0;
-    position: relative;
-    transition: all 0.3s ease;
-    cursor: pointer;
-    min-height: 4px;
+    transition: height 0.3s ease;
 }
 
-.chart-bar:hover {
-    background: var(--accent-primary);
-    transform: translateY(-4px);
+.chart-day-fill.balanced {
+    background: linear-gradient(180deg, rgba(53, 214, 168, 0.92) 0%, rgba(53, 214, 168, 0.58) 100%);
 }
 
-.chart-bar-value {
-    position: absolute;
-    top: -28px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: var(--accent-secondary);
-    white-space: nowrap;
+.chart-day-fill.under {
+    background: linear-gradient(180deg, rgba(111, 149, 255, 0.92) 0%, rgba(111, 149, 255, 0.58) 100%);
 }
 
-.chart-bar-label {
-    position: absolute;
-    bottom: -28px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 0.8rem;
+.chart-day-fill.over {
+    background: linear-gradient(180deg, rgba(229, 106, 106, 0.95) 0%, rgba(229, 106, 106, 0.6) 100%);
+}
+
+.chart-day-name {
+    font-size: 0.76rem;
     color: var(--text-secondary);
     font-weight: 600;
-    white-space: nowrap;
 }
 
 /* Logs Section */
@@ -1223,9 +1310,12 @@ input::placeholder {
         padding: 20px;
     }
 
+    .chart-summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 
-    .chart-container {
-        height: 140px;
+    .chart-day-track {
+        height: 128px;
     }
 
     .custom-macros-grid,
@@ -1274,6 +1364,14 @@ input::placeholder {
 
     .header-actions {
         gap: 8px;
+    }
+
+    .chart-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .chart-day-track {
+        height: 110px;
     }
 }
 
