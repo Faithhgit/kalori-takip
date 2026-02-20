@@ -336,20 +336,26 @@ function calcMovingAverage(entries, days) {
 
 // Adaptive TDEE hesaplama
 function calcAdaptiveTDEE(weightEntries, calorieLogs) {
-    if (weightEntries.length < 10) return null; // Yetersiz veri
+    const MIN_WEIGHT_ENTRIES = 7;
+    const MIN_INTAKE_DAYS = 5;
 
-    // Son 14 gün (en az 10)
+    if (weightEntries.length < MIN_WEIGHT_ENTRIES) return null;
+
     const sorted = [...weightEntries].sort((a, b) => a.date.localeCompare(b.date));
-    const last14 = sorted.slice(-14);
-    if (last14.length < 10) return null;
+    const windowSize = Math.min(14, sorted.length);
+    const analysisWindow = sorted.slice(-windowSize);
+    const compareChunk = Math.max(3, Math.floor(analysisWindow.length / 2));
+    if (analysisWindow.length < compareChunk * 2) return null;
 
-    // 7 günlük ortalamalarla başlangıç-bitiş farkı
-    const firstWeek = last14.slice(0, 7);
-    const lastWeek = last14.slice(-7);
-    const avgFirst = firstWeek.reduce((s, e) => s + e.weight, 0) / firstWeek.length;
-    const avgLast = lastWeek.reduce((s, e) => s + e.weight, 0) / lastWeek.length;
+    const firstChunk = analysisWindow.slice(0, compareChunk);
+    const lastChunk = analysisWindow.slice(-compareChunk);
+    const avgFirst = firstChunk.reduce((s, e) => s + e.weight, 0) / firstChunk.length;
+    const avgLast = lastChunk.reduce((s, e) => s + e.weight, 0) / lastChunk.length;
     const deltaKg = avgLast - avgFirst;
-    const daySpan = last14.length;
+
+    const startMs = new Date(firstChunk[0].date + 'T00:00:00').getTime();
+    const endMs = new Date(lastChunk[lastChunk.length - 1].date + 'T00:00:00').getTime();
+    const daySpan = Math.max(1, Math.round((endMs - startMs) / 86400000) + 1);
 
     // Haftalık kilo değişimi
     const weeklyChange = (deltaKg / daySpan) * 7;
@@ -358,8 +364,8 @@ function calcAdaptiveTDEE(weightEntries, calorieLogs) {
     const weeklyEnergyDiff = weeklyChange * 7700;
     const dailyEnergyDiff = weeklyEnergyDiff / 7;
 
-    // Son 14 gün ortalama kalori alımı
-    const dateRange = last14.map(e => e.date);
+    // Analiz penceresi için ortalama kalori alımı
+    const dateRange = analysisWindow.map(e => e.date);
     const startDate = dateRange[0];
     const endDate = dateRange[dateRange.length - 1];
 
@@ -381,7 +387,7 @@ function calcAdaptiveTDEE(weightEntries, calorieLogs) {
         }
     }
 
-    if (intakeDays < 7) return null; // Yetersiz kalori verisi
+    if (intakeDays < Math.min(MIN_INTAKE_DAYS, dateSet.size)) return null;
 
     const avgIntake = totalIntake / intakeDays;
     let adaptiveTDEE = Math.round(avgIntake + dailyEnergyDiff);
@@ -470,7 +476,7 @@ async function loadExtendedLogsForAdaptive(weightEntries) {
     const tdeeEl = document.getElementById('adaptiveTdee');
     const adaptiveBtn = document.getElementById('updateGoalsAdaptive');
 
-    if (weightEntries.length < 10) {
+    if (weightEntries.length < 7) {
         tdeeEl.textContent = 'Yetersiz veri';
         adaptiveBtn.style.display = 'none';
         return;
@@ -1341,11 +1347,11 @@ function updateMotivation() {
             const fPct = Math.round((macroKcal.fat / macroTotal) * 100);
 
             if (fPct > 45) {
-                messages.push(`Makro dağılımında yağ yüksek (${pPct}/${cPct}/${fPct}). Bir sonraki öğünü daha dengeli kurabilirsin.`);
+                messages.push(`Makro dağılımında yağ yüksek (Protein %${pPct}, Karbonhidrat %${cPct}, Yağ %${fPct}). Bir sonraki öğünü daha dengeli kurabilirsin.`);
             } else if (pPct < 20 && totals.kcal > TARGETS.kcal * 0.5) {
                 messages.push(`Makro dağılımında protein oranı düşük (Protein %${pPct}, Karbonhidrat %${cPct}, Yağ %${fPct}). Protein kaynağı eklemek iyi olur.`);
             } else {
-                messages.push(`Makro dengesi iyi gidiyor (${pPct}/${cPct}/${fPct}).`);
+                messages.push(`Makro dengesi iyi gidiyor (Protein %${pPct}, Karbonhidrat %${cPct}, Yağ %${fPct}).`);
             }
         }
     }
@@ -1380,7 +1386,18 @@ function updateMotivation() {
         messages.push(pickOne(pepTalkPool));
     }
 
-    document.getElementById('motivationText').textContent = messages.join(' ');
+    const uniqueMessages = [...new Set(messages.filter(Boolean))];
+    const compact = [];
+    if (uniqueMessages[0]) compact.push(uniqueMessages[0]);
+    if (uniqueMessages.length > 1) {
+        compact.push(uniqueMessages[1 + Math.floor(Math.random() * (uniqueMessages.length - 1))]);
+    }
+    if (uniqueMessages.length > 2 && (streak >= 3 || Math.random() > 0.5)) {
+        const pool = uniqueMessages.slice(1).filter(msg => !compact.includes(msg));
+        if (pool.length > 0) compact.push(pool[Math.floor(Math.random() * pool.length)]);
+    }
+
+    document.getElementById('motivationText').textContent = compact.join(' ');
 }
 // Search and Add Functions
 const RECENT_ITEMS_KEY = 'recentItems';
