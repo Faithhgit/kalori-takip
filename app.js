@@ -1,11 +1,13 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getFirestore, collection, addDoc, query, where, getDocs, deleteDoc, doc, setDoc, updateDoc, serverTimestamp, orderBy } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getFirestore, collection, addDoc, query, where, getDocs, getDoc, deleteDoc, doc, setDoc, updateDoc, serverTimestamp, orderBy } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
 import { foods } from './data/foods.js';
 import { drinks } from './data/drinks.js';
 
 // Constants - Load from localStorage or defaults
 const TARGETS_KEY = 'calorieTargets';
+const SETTINGS_COLLECTION = 'app_settings';
+const SETTINGS_DOC_ID = 'default_settings';
 let TARGETS = loadTargets();
 
 function loadTargets() {
@@ -46,6 +48,52 @@ function loadProfile() {
 
 function saveProfile(profile) {
     localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+}
+
+async function loadSettingsFromCloud() {
+    if (!db) return;
+
+    try {
+        const settingsRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC_ID);
+        const snap = await getDoc(settingsRef);
+        if (!snap.exists()) return;
+
+        const data = snap.data() || {};
+
+        if (data.targets && typeof data.targets === 'object') {
+            const nextTargets = {
+                kcal: Number(data.targets.kcal) || TARGETS.kcal,
+                protein: Number(data.targets.protein) || TARGETS.protein,
+                carb: Number(data.targets.carb) || TARGETS.carb,
+                fat: Number(data.targets.fat) || TARGETS.fat
+            };
+            saveTargets(nextTargets);
+            document.getElementById('targetKcalDisplay').textContent = nextTargets.kcal;
+        }
+
+        if (data.profile && typeof data.profile === 'object') {
+            saveProfile(data.profile);
+        }
+    } catch (error) {
+        console.warn('Cloud settings could not be loaded:', error);
+    }
+}
+
+async function saveSettingsToCloud(targets, profile) {
+    if (!db) return false;
+
+    try {
+        const settingsRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC_ID);
+        await setDoc(settingsRef, {
+            targets,
+            profile,
+            updated_at: serverTimestamp()
+        }, { merge: true });
+        return true;
+    } catch (error) {
+        console.warn('Cloud settings could not be saved:', error);
+        return false;
+    }
 }
 
 function loadWeightLog() {
@@ -1392,6 +1440,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Load data
     await loadCustomItems();
+    await loadSettingsFromCloud();
     await loadTodayLogs();
     await loadWeekLogs();
     hideLoading();
@@ -1634,7 +1683,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         settingsModal.classList.remove('active');
     });
 
-    saveSettingsBtn.addEventListener('click', () => {
+    saveSettingsBtn.addEventListener('click', async () => {
         const newTargets = {
             kcal: parseInt(document.getElementById('targetKcal').value),
             protein: parseInt(document.getElementById('targetProtein').value),
@@ -1646,18 +1695,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Profil bilgilerini de kaydet
         const gender = document.getElementById('profileGender').value;
+        const profileToSave = {
+            gender: gender || '',
+            age: parseInt(document.getElementById('profileAge').value) || 0,
+            height: parseFloat(document.getElementById('profileHeight').value) || 0,
+            weight: parseFloat(document.getElementById('profileWeight').value) || 0,
+            activity: parseFloat(document.getElementById('profileActivity').value) || 1.2,
+            trainingDays: parseInt(document.getElementById('profileTrainingDays').value) || 0,
+            steps: parseInt(document.getElementById('profileSteps').value) || 0,
+            goalMode: document.getElementById('profileGoalMode').value
+        };
+
         if (gender) {
-            const prof = {
-                gender,
-                age: parseInt(document.getElementById('profileAge').value) || 0,
-                height: parseFloat(document.getElementById('profileHeight').value) || 0,
-                weight: parseFloat(document.getElementById('profileWeight').value) || 0,
-                activity: parseFloat(document.getElementById('profileActivity').value) || 1.2,
-                trainingDays: parseInt(document.getElementById('profileTrainingDays').value) || 0,
-                steps: parseInt(document.getElementById('profileSteps').value) || 0,
-                goalMode: document.getElementById('profileGoalMode').value
-            };
-            saveProfile(prof);
+            saveProfile(profileToSave);
+        }
+
+        const cloudSaved = await saveSettingsToCloud(newTargets, profileToSave);
+        if (!cloudSaved) {
+            showError('Ayarlar Firebase\'e kaydedilemedi. Firestore kurallarini kontrol edin.');
         }
 
         // Update UI
