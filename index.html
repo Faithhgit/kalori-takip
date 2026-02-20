@@ -240,6 +240,8 @@
                 <div class="tabs-container">
                     <button class="tab-button active" onclick="switchTab('logs')">📝 Kayıtlar</button>
                     <button class="tab-button" onclick="switchTab('add')">➕ Yeni Ekle</button>
+                    <button class="tab-button" onclick="switchTab('catalog')">📋 Tüm Ürünler</button>
+                    <button class="tab-button" onclick="switchTab('templates')">📦 Şablonlar</button>
                 </div>
 
                 <!-- Logs Tab -->
@@ -347,6 +349,77 @@
                         </div>
                     </section>
                 </div>
+
+                <!-- Catalog Tab -->
+                <div id="catalog-tab" class="tab-content">
+                    <section class="catalog-section">
+                        <div class="catalog-controls">
+                            <div class="catalog-filter-row">
+                                <div class="catalog-category-btns">
+                                    <button class="catalog-filter-btn active" data-category="all">Tümü</button>
+                                    <button class="catalog-filter-btn" data-category="food">🍗 Yiyecek</button>
+                                    <button class="catalog-filter-btn" data-category="drink">🥤 İçecek</button>
+                                </div>
+                            </div>
+                            <input type="text" id="catalogSearch" placeholder="Ürün ara..." class="catalog-search-input">
+                        </div>
+                        <div class="catalog-count" id="catalogCount">0 ürün</div>
+                        <div class="catalog-list" id="catalogList"></div>
+                    </section>
+                </div>
+
+                <!-- Templates Tab -->
+                <div id="templates-tab" class="tab-content">
+                    <section class="templates-section">
+                        <!-- Template List View -->
+                        <div id="templateListView">
+                            <div class="templates-header">
+                                <h3>📦 Hazır Şablonlar</h3>
+                                <button class="btn btn-primary btn-sm" id="createTemplateBtn">+ Yeni Şablon</button>
+                            </div>
+                            <div class="templates-list" id="templatesList"></div>
+                        </div>
+
+                        <!-- Template Create View -->
+                        <div id="templateFormView" style="display: none;">
+                            <div class="template-form-header">
+                                <button class="btn btn-secondary btn-sm" id="backToTemplates">← Geri</button>
+                                <h3>Yeni Şablon</h3>
+                            </div>
+                            <div class="form-group">
+                                <label for="templateName">Şablon Adı</label>
+                                <input type="text" id="templateName" placeholder="Örn: Sabah Kahvaltısı">
+                            </div>
+                            <div class="template-items-list" id="templateItemsList"></div>
+                            <div class="template-add-item">
+                                <div class="form-group" style="margin-bottom: 8px;">
+                                    <label>Ürün Tipi</label>
+                                    <div class="radio-group">
+                                        <label class="radio-label">
+                                            <input type="radio" name="tplItemType" value="food" checked>
+                                            <span>Yiyecek</span>
+                                        </label>
+                                        <label class="radio-label">
+                                            <input type="radio" name="tplItemType" value="drink">
+                                            <span>İçecek</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 8px;">
+                                    <label for="tplSearchInput">Ürün Ara</label>
+                                    <input type="text" id="tplSearchInput" placeholder="Ürün adı yazın..." autocomplete="off">
+                                    <div class="dropdown" id="tplDropdown"></div>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 8px;">
+                                    <label for="tplGramsInput" id="tplAmountLabel">Miktar (gram)</label>
+                                    <input type="number" id="tplGramsInput" placeholder="100" min="1">
+                                </div>
+                                <button class="btn btn-secondary" id="addItemToTemplate" style="width: 100%;">Ürün Ekle</button>
+                            </div>
+                            <button class="btn btn-primary" id="saveTemplate" style="width: 100%; margin-top: 16px;">Şablonu Kaydet</button>
+                        </div>
+                    </section>
+                </div>
             </div>
 
         </div>
@@ -355,23 +428,28 @@
     <script type="module" src="app.js"></script>
     <script>
         // Tab switching functionality
-        function switchTab(tabName) {
-            // Update tab buttons
-            document.querySelectorAll('.tab-button').forEach(btn => {
-                btn.classList.remove('active');
-            });
+        const tabLabels = {
+            'logs': 'Kayıtlar',
+            'add': 'Yeni Ekle',
+            'catalog': 'Tüm Ürünler',
+            'templates': 'Şablonlar'
+        };
 
-            // Find the button that was clicked
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+
+            const label = tabLabels[tabName];
             const clickedBtn = Array.from(document.querySelectorAll('.tab-button')).find(
-                btn => btn.textContent.includes(tabName === 'logs' ? 'Kayıtlar' : 'Yeni Ekle')
+                btn => btn.textContent.includes(label)
             );
             if (clickedBtn) clickedBtn.classList.add('active');
 
-            // Update tab content
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             document.getElementById(tabName + '-tab').classList.add('active');
+
+            // Lazy render
+            if (tabName === 'catalog' && typeof renderCatalog === 'function') renderCatalog();
+            if (tabName === 'templates' && typeof renderTemplateList === 'function') renderTemplateList();
         }
     </script>
 </body>
