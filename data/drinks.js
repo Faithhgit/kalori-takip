@@ -267,6 +267,166 @@ export const drinks = [
         protein_100: 8,
         carb_100: 3,
         fat_100: 1
+    },
+    {
+        id: 'drink_034',
+        name: 'Turk Kahvesi (Sade)',
+        kcal_100: 1,
+        protein_100: 0.1,
+        carb_100: 0.2,
+        fat_100: 0
+    },
+    {
+        id: 'drink_035',
+        name: 'Filtre Kahve (Sade)',
+        kcal_100: 2,
+        protein_100: 0.3,
+        carb_100: 0,
+        fat_100: 0
+    },
+    {
+        id: 'drink_036',
+        name: 'Espresso',
+        kcal_100: 9,
+        protein_100: 0.5,
+        carb_100: 1.7,
+        fat_100: 0.2
+    },
+    {
+        id: 'drink_037',
+        name: 'Latte (Tam Yagli Sut)',
+        kcal_100: 58,
+        protein_100: 3.1,
+        carb_100: 4.7,
+        fat_100: 3.1
+    },
+    {
+        id: 'drink_038',
+        name: 'Mocha',
+        kcal_100: 76,
+        protein_100: 2.6,
+        carb_100: 11,
+        fat_100: 2.5
+    },
+    {
+        id: 'drink_039',
+        name: 'Sicak Cikolata',
+        kcal_100: 85,
+        protein_100: 3,
+        carb_100: 12,
+        fat_100: 2.8
+    },
+    {
+        id: 'drink_040',
+        name: 'Ice Americano',
+        kcal_100: 1,
+        protein_100: 0.2,
+        carb_100: 0,
+        fat_100: 0
+    },
+    {
+        id: 'drink_041',
+        name: 'Ice Latte',
+        kcal_100: 46,
+        protein_100: 2.4,
+        carb_100: 4.6,
+        fat_100: 1.8
+    },
+    {
+        id: 'drink_042',
+        name: 'Seftali Ice Tea',
+        kcal_100: 30,
+        protein_100: 0,
+        carb_100: 7.2,
+        fat_100: 0
+    },
+    {
+        id: 'drink_043',
+        name: 'Nar Suyu',
+        kcal_100: 54,
+        protein_100: 0.2,
+        carb_100: 13,
+        fat_100: 0.1
+    },
+    {
+        id: 'drink_044',
+        name: 'Ananas Suyu',
+        kcal_100: 53,
+        protein_100: 0.4,
+        carb_100: 12.8,
+        fat_100: 0.1
+    },
+    {
+        id: 'drink_045',
+        name: 'Visne Suyu',
+        kcal_100: 47,
+        protein_100: 0.3,
+        carb_100: 11.5,
+        fat_100: 0.1
+    },
+    {
+        id: 'drink_046',
+        name: 'Limonlu Soda (Sekerli)',
+        kcal_100: 24,
+        protein_100: 0,
+        carb_100: 6,
+        fat_100: 0
+    },
+    {
+        id: 'drink_047',
+        name: 'Kefir (Meyveli)',
+        kcal_100: 78,
+        protein_100: 2.8,
+        carb_100: 11,
+        fat_100: 2.2
+    },
+    {
+        id: 'drink_048',
+        name: 'Protein Smoothie (Muzlu)',
+        kcal_100: 92,
+        protein_100: 8,
+        carb_100: 10,
+        fat_100: 2.2
+    },
+    {
+        id: 'drink_049',
+        name: 'Soguk Kakao',
+        kcal_100: 66,
+        protein_100: 2.9,
+        carb_100: 9.2,
+        fat_100: 1.9
+    },
+    {
+        id: 'drink_050',
+        name: 'Soya Sutu',
+        kcal_100: 45,
+        protein_100: 3.3,
+        carb_100: 2.5,
+        fat_100: 1.8
+    },
+    {
+        id: 'drink_051',
+        name: 'Yulaf Sutu',
+        kcal_100: 46,
+        protein_100: 1,
+        carb_100: 6.7,
+        fat_100: 1.5
+    },
+    {
+        id: 'drink_052',
+        name: 'Hindistan Cevizi Sutu (Icecek)',
+        kcal_100: 20,
+        protein_100: 0.2,
+        carb_100: 1.9,
+        fat_100: 1.2
+    },
+    {
+        id: 'drink_053',
+        name: 'Lassi (Meyveli)',
+        kcal_100: 74,
+        protein_100: 3.1,
+        carb_100: 12,
+        fat_100: 1.6
     }
 ];
 

@@ -347,6 +347,166 @@ export const foods = [
         protein_100: 9,
         carb_100: 52,
         fat_100: 7
+    },
+    {
+        id: 'food_044',
+        name: 'Yumurta (Tavada)',
+        kcal_100: 196,
+        protein_100: 13.6,
+        carb_100: 1.1,
+        fat_100: 14.8
+    },
+    {
+        id: 'food_045',
+        name: 'Beyaz Ekmek',
+        kcal_100: 265,
+        protein_100: 8.8,
+        carb_100: 49,
+        fat_100: 3.2
+    },
+    {
+        id: 'food_046',
+        name: 'Simit',
+        kcal_100: 330,
+        protein_100: 10.5,
+        carb_100: 60,
+        fat_100: 6.3
+    },
+    {
+        id: 'food_047',
+        name: 'Kasar Peyniri',
+        kcal_100: 404,
+        protein_100: 25,
+        carb_100: 1.3,
+        fat_100: 33
+    },
+    {
+        id: 'food_048',
+        name: 'Zeytin (Siyah)',
+        kcal_100: 115,
+        protein_100: 0.8,
+        carb_100: 6.3,
+        fat_100: 10.7
+    },
+    {
+        id: 'food_049',
+        name: 'Domates',
+        kcal_100: 18,
+        protein_100: 0.9,
+        carb_100: 3.9,
+        fat_100: 0.2
+    },
+    {
+        id: 'food_050',
+        name: 'Salatalik',
+        kcal_100: 15,
+        protein_100: 0.7,
+        carb_100: 3.6,
+        fat_100: 0.1
+    },
+    {
+        id: 'food_051',
+        name: 'Menemen',
+        kcal_100: 120,
+        protein_100: 6.5,
+        carb_100: 4.5,
+        fat_100: 8.5
+    },
+    {
+        id: 'food_052',
+        name: 'Mercimek Corbasi',
+        kcal_100: 64,
+        protein_100: 3.2,
+        carb_100: 9.6,
+        fat_100: 1.3
+    },
+    {
+        id: 'food_053',
+        name: 'Ezogelin Corbasi',
+        kcal_100: 66,
+        protein_100: 2.2,
+        carb_100: 11,
+        fat_100: 1.5
+    },
+    {
+        id: 'food_054',
+        name: 'Peynirli Omlet',
+        kcal_100: 210,
+        protein_100: 13,
+        carb_100: 2.5,
+        fat_100: 16
+    },
+    {
+        id: 'food_055',
+        name: 'Ton Balikli Salata',
+        kcal_100: 120,
+        protein_100: 15,
+        carb_100: 4,
+        fat_100: 5
+    },
+    {
+        id: 'food_056',
+        name: 'Patates Kizartmasi',
+        kcal_100: 312,
+        protein_100: 3.4,
+        carb_100: 41,
+        fat_100: 15
+    },
+    {
+        id: 'food_057',
+        name: 'Beyaz Pilav (Yagli)',
+        kcal_100: 170,
+        protein_100: 2.6,
+        carb_100: 32,
+        fat_100: 3.2
+    },
+    {
+        id: 'food_058',
+        name: 'Kuru Fasulye (Pismis)',
+        kcal_100: 127,
+        protein_100: 8.7,
+        carb_100: 22.8,
+        fat_100: 0.5
+    },
+    {
+        id: 'food_059',
+        name: 'Nohutlu Pilav',
+        kcal_100: 150,
+        protein_100: 4.5,
+        carb_100: 28,
+        fat_100: 2.8
+    },
+    {
+        id: 'food_060',
+        name: 'Lahmacun',
+        kcal_100: 263,
+        protein_100: 12,
+        carb_100: 28,
+        fat_100: 11
+    },
+    {
+        id: 'food_061',
+        name: 'Et Doner',
+        kcal_100: 215,
+        protein_100: 19,
+        carb_100: 5,
+        fat_100: 13
+    },
+    {
+        id: 'food_062',
+        name: 'Tavuk Doner',
+        kcal_100: 189,
+        protein_100: 20,
+        carb_100: 4,
+        fat_100: 8.5
+    },
+    {
+        id: 'food_063',
+        name: 'Sigara Boregi',
+        kcal_100: 294,
+        protein_100: 8.5,
+        carb_100: 30,
+        fat_100: 15.5
     }
 ];
 

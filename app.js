@@ -992,7 +992,18 @@ function updateMotivation() {
     const hour = new Date().getHours();
     const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
 
+    const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
     const messages = [];
+    const pepTalkPool = [
+        '🧭 Planlı ilerlemek, hızlı ilerlemekten daha değerlidir.',
+        '🧱 Küçük adımlar üst üste geldiğinde büyük sonuç verir.',
+        '🎯 Bugünkü tek hedef: bir önceki günden %1 daha iyi olmak.',
+        '🌿 Mükemmel olmak zorunda değilsin, tutarlı olman yeterli.',
+        '🛡️ Disiplin, motivasyonun olmadığı günlerin sigortasıdır.',
+        '🚀 Kayıt tuttuğun her gün hedeflerine bir adım daha yaklaşırsın.',
+        '⏱️ En iyi strateji: basit plan + düzenli uygulama.',
+        '🏁 Yarışı hız değil, sürdürülebilirlik kazandırır.'
+    ];
 
     // Kalori bazli ana mesaj
     if (totals.kcal === 0) {
@@ -1000,41 +1011,92 @@ function updateMotivation() {
             morning: [
                 '🌅 Günaydın! Güne sağlıklı bir kahvaltıyla başla.',
                 '☀️ Güne enerjik başlamak için ilk öğününü kaydet.',
-                '🌟 Yeni bir gün, yeni fırsatlar! İlk kaydını ekle.'
+                '🌟 Yeni bir gün, yeni fırsatlar! İlk kaydını ekle.',
+                '🥣 Sabah rutini günün geri kalanını belirler, güçlü başla.',
+                '🧃 Güne suyla başla, ardından dengeli bir öğün planla.',
+                '📌 Sabah yapılan ilk doğru seçim tüm günü kolaylaştırır.'
             ],
             afternoon: [
                 '🕐 Öğleden sonra enerjini topla, kayıtlarına başla!',
-                '💪 Günün yarısı geçti, hedefine ulaşmak için kayıt ekle.'
+                '💪 Günün yarısı geçti, hedefine ulaşmak için kayıt ekle.',
+                '🍛 Öğle sonrası dengeyi kurarsan akşam çok daha rahat geçer.',
+                '📈 Öğleden sonra yapılan doğru tercih, günlük ortalamayı toparlar.'
             ],
             evening: [
                 '🌙 Akşam oldu ama geç değil! Bugünkü öğünlerini kaydet.',
-                '🍽️ Akşam yemeğini kaydetmeyi unutma!'
+                '🍽️ Akşam yemeğini kaydetmeyi unutma!',
+                '📝 Gün bitmeden son kayıtlarını gir, verin temiz kalsın.',
+                '🛌 Yarın rahat etmek için bugünü net kapat.'
             ]
         };
-        const pool = timeMsg[timeOfDay];
-        messages.push(pool[Math.floor(Math.random() * pool.length)]);
+        messages.push(pickOne(timeMsg[timeOfDay]));
     } else if (remaining > 800) {
-        messages.push(`💪 Bugün için ${remaining} kcal daha alabilirsin. Gün henüz uzun!`);
+        messages.push(pickOne([
+            `💪 Bugün için ${remaining} kcal daha alabilirsin. Gün henüz uzun!`,
+            `🔋 Enerji açığın var: ${remaining} kcal. Dengeli bir öğün daha ekleyebilirsin.`,
+            `🥗 Hedefe ulaşmak için ${remaining} kcal alanın var; kaliteli kaloriye odaklan.`,
+            `📌 ${remaining} kcal boşluğun var. Protein + kompleks karbonhidrat iyi gider.`
+        ]));
     } else if (remaining > 300) {
-        messages.push(`🎯 Hedefe yaklaşıyorsun! Sadece ${remaining} kcal kaldı.`);
+        messages.push(pickOne([
+            `🎯 Hedefe yaklaşıyorsun! Sadece ${remaining} kcal kaldı.`,
+            `📍 Gayet iyi gidiyorsun, ${remaining} kcal ile günü tamamlayabilirsin.`,
+            `🚶‍♂️ Az kaldı: ${remaining} kcal. Kontrollü bir ara öğün yeterli olabilir.`,
+            `✅ Denge güzel, ${remaining} kcal alanın kaldı.`
+        ]));
     } else if (remaining > 0) {
-        messages.push(`🔥 Son düzlük! ${remaining} kcal ile hedefine ulaşacaksın.`);
+        messages.push(pickOne([
+            `🔥 Son düzlük! ${remaining} kcal ile hedefine ulaşacaksın.`,
+            `🏁 Çok yakınsın, ${remaining} kcal ile günü tam kapatırsın.`,
+            `🎯 Hedef çizgisine geldin, kalan ${remaining} kcal için hafif bir dokunuş yeter.`,
+            `⚖️ İnce ayar zamanı: ${remaining} kcal.`
+        ]));
     } else if (remaining === 0) {
-        messages.push('🎉 Mükemmel! Hedefine tam olarak ulaştın!');
+        messages.push(pickOne([
+            '🎉 Mükemmel! Hedefine tam olarak ulaştın!',
+            '👏 Harika denge! Günlük kalori hedefi nokta atışı tamamlandı.',
+            '✅ Plan kusursuz uygulandı. Bugün hedef tam isabet.',
+            '🏆 Günlük hedef kilitlendi. Tebrikler!'
+        ]));
     } else if (Math.abs(remaining) < 200) {
-        messages.push(`⚡ Hedefi ${Math.abs(remaining)} kcal aştın. Hafif bir fazla, sorun değil.`);
+        messages.push(pickOne([
+            `⚡ Hedefi ${Math.abs(remaining)} kcal aştın. Hafif bir fazla, sorun değil.`,
+            `🙂 ${Math.abs(remaining)} kcal fazlalık yönetilebilir. Yarın denge kolayca kurulur.`,
+            `🧩 Küçük bir sapma var (+${Math.abs(remaining)} kcal), genel tablo hâlâ iyi.`,
+            `📘 Ufak taşma (+${Math.abs(remaining)} kcal). Haftalık ortalamada telafi edilir.`
+        ]));
     } else {
-        messages.push(`⚠️ Hedefi ${Math.abs(remaining)} kcal aştın. Yarın dengelemeye çalış.`);
+        messages.push(pickOne([
+            `⚠️ Hedefi ${Math.abs(remaining)} kcal aştın. Yarın dengelemeye çalış.`,
+            `📉 Bugün hedefin üstündesin (+${Math.abs(remaining)} kcal). Yarın daha sade ilerleyebilirsin.`,
+            `🛠️ Fazlalık var (+${Math.abs(remaining)} kcal). Bir sonraki gün öğünlerini biraz hafiflet.`,
+            `🔁 Bugünkü sapmayı yarınki planla rahatça toparlayabilirsin.`
+        ]));
     }
 
     // Protein geri bildirimi
     if (totals.kcal > 0) {
         if (proteinPct >= 100) {
-            messages.push('💎 Protein hedefini tamamladın, harika!');
+            messages.push(pickOne([
+                '💎 Protein hedefini tamamladın, harika!',
+                '🥩 Protein tarafı kusursuz, kas korunumu için çok iyi.',
+                '🛡️ Protein hedefi tamam: toparlanma ve tokluk açısından güçlü gündesin.',
+                '✅ Protein hedefi kilitlendi. Bu tempo çok değerli.'
+            ]));
         } else if (proteinPct >= 70) {
-            messages.push(`🥩 Protein iyi gidiyor: %${Math.round(proteinPct)}.`);
+            messages.push(pickOne([
+                `🥩 Protein iyi gidiyor: %${Math.round(proteinPct)}.`,
+                `📈 Protein hedefinde güzel ilerleme var (%${Math.round(proteinPct)}).`,
+                `💪 Protein çizgisi güçlü (%${Math.round(proteinPct)}), aynı şekilde devam.`,
+                `🍗 Günün geri kalanı için protein tamamlaması kolay görünüyor.`
+            ]));
         } else if (proteinPct < 40 && totals.kcal > TARGETS.kcal * 0.5) {
-            messages.push(`⚠️ Protein düşük (%${Math.round(proteinPct)}). Protein ağırlıklı bir öğün ekle.`);
+            messages.push(pickOne([
+                `⚠️ Protein düşük (%${Math.round(proteinPct)}). Protein ağırlıklı bir öğün ekle.`,
+                `🔎 Kalori alımı var ama protein geride (%${Math.round(proteinPct)}).`,
+                '🍳 Bir sonraki öğünde yumurta, tavuk, yoğurt veya ton balığı iyi seçenek olur.',
+                '🧠 Tokluk ve toparlanma için protein tarafını biraz güçlendirebilirsin.'
+            ]));
         }
     }
 
@@ -1085,6 +1147,10 @@ function updateMotivation() {
     // Yeni kullanici
     if (loggedDays <= 1 && todayLogs.length > 0 && todayLogs.length <= 2) {
         messages.push('🌱 Harika başlangıç! Düzenli kayıt farkındalığı artırır.');
+    }
+
+    if (todayLogs.length > 0) {
+        messages.push(pickOne(pepTalkPool));
     }
 
     document.getElementById('motivationText').textContent = messages.join(' ');
@@ -1582,11 +1648,18 @@ function setupMobileCollapsibles() {
     if (window.innerWidth > 768) return;
 
     const MOBILE_COLLAPSE_KEY = 'mobileCollapseState';
+    const MOBILE_COLLAPSE_SCHEMA = 2;
     let savedState = {};
     try {
         savedState = JSON.parse(localStorage.getItem(MOBILE_COLLAPSE_KEY)) || {};
     } catch {
         savedState = {};
+    }
+
+    // Eski kayitli mobil durumlarini bir kez temizleyip yeni varsayilani uygula
+    if (savedState.__schema !== MOBILE_COLLAPSE_SCHEMA) {
+        savedState = { __schema: MOBILE_COLLAPSE_SCHEMA };
+        localStorage.setItem(MOBILE_COLLAPSE_KEY, JSON.stringify(savedState));
     }
 
     // Mobilde motivasyon kartını en üste taşı
