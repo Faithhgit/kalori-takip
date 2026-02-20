@@ -539,15 +539,39 @@ async function editLog(logId) {
     if (!newAmount || isNaN(newAmount) || newAmount <= 0) return;
 
     const amount = parseInt(newAmount);
+    const sourceItem =
+        foods.find(item => item.id === log.item_id) ||
+        drinks.find(item => item.id === log.item_id);
+
+    if (!sourceItem) {
+        const oldAmount = Number(log.grams) || 100;
+        const ratio = amount / oldAmount;
+        try {
+            await updateDoc(doc(db, 'daily_logs', logId), {
+                grams: amount,
+                kcal: Math.round((log.kcal || 0) * ratio),
+                protein: Math.round((log.protein || 0) * ratio * 10) / 10,
+                carb: Math.round((log.carb || 0) * ratio * 10) / 10,
+                fat: Math.round((log.fat || 0) * ratio * 10) / 10
+            });
+            await loadTodayLogs();
+            await loadWeekLogs();
+        } catch (error) {
+            console.error('Error updating log:', error);
+            showError('Kayıt güncellenirken hata oluştu.');
+        }
+        return;
+    }
+
     const ratio = amount / 100;
 
     try {
         await updateDoc(doc(db, 'daily_logs', logId), {
             grams: amount,
-            kcal: Math.round(log.kcal_100 * ratio),
-            protein: Math.round(log.protein_100 * ratio),
-            carb: Math.round(log.carb_100 * ratio),
-            fat: Math.round(log.fat_100 * ratio)
+            kcal: Math.round(sourceItem.kcal_100 * ratio),
+            protein: Math.round(sourceItem.protein_100 * ratio * 10) / 10,
+            carb: Math.round(sourceItem.carb_100 * ratio * 10) / 10,
+            fat: Math.round(sourceItem.fat_100 * ratio * 10) / 10
         });
         await loadTodayLogs();
         await loadWeekLogs();
@@ -556,7 +580,6 @@ async function editLog(logId) {
         showError('Kayıt güncellenirken hata oluştu.');
     }
 }
-
 async function deleteCustomItem(itemId) {
     try {
         // Delete from Firestore
@@ -712,15 +735,35 @@ function renderChart() {
     }).join('');
 }
 
+// Seri sayisini dondur (updateGoalStreak'ten bagimsiz helper)
+function getGoalStreak() {
+    const dates = getLast7Days().reverse();
+    let streak = 0;
+    for (const date of dates) {
+        const dayLogs = weekLogs.filter(log => log.date === date);
+        const dayTotal = dayLogs.reduce((sum, log) => sum + log.kcal, 0);
+        if (dayTotal >= TARGETS.kcal * 0.9 && dayTotal <= TARGETS.kcal * 1.1) {
+            streak++;
+        } else {
+            break;
+        }
+    }
+    return streak;
+}
+
 function updateMotivation() {
     const totals = todayLogs.reduce((acc, log) => {
         acc.kcal += log.kcal;
+        acc.protein += log.protein;
+        acc.carb += log.carb;
+        acc.fat += log.fat;
         return acc;
-    }, { kcal: 0 });
-    
+    }, { kcal: 0, protein: 0, carb: 0, fat: 0 });
+
     const remaining = TARGETS.kcal - totals.kcal;
-    
-    // Calculate 7-day average
+    const proteinPct = TARGETS.protein > 0 ? (totals.protein / TARGETS.protein) * 100 : 0;
+
+    // 7 gunluk ortalama
     const dates = getLast7Days();
     const dailyTotals = {};
     dates.forEach(date => dailyTotals[date] = 0);
@@ -729,27 +772,112 @@ function updateMotivation() {
             dailyTotals[log.date] += log.kcal;
         }
     });
-    const weekAvg = Math.round(Object.values(dailyTotals).reduce((a, b) => a + b, 0) / 7);
-    
-    let message = '';
-    
-    if (totals.kcal === 0) {
-        message = '🌟 Güne başlamak için harika bir zaman! İlk kaydını ekle.';
-    } else if (remaining > 500) {
-        message = `💪 Bugün için ${remaining} kcal daha alabilirsin. Devam et!`;
-    } else if (remaining > 0) {
-        message = `🎯 Hedefe çok yakınsın! Sadece ${remaining} kcal kaldı.`;
-    } else if (remaining === 0) {
-        message = '🎉 Mükemmel! Hedefine tam olarak ulaştın!';
-    } else {
-        message = `⚠️ Hedefi ${Math.abs(remaining)} kcal aştın. Yarın daha dikkatli olabilirsin.`;
-    }
-    
-    message += ` Son 7 günlük ortalamanız: ${weekAvg} kcal.`;
-    
-    document.getElementById('motivationText').textContent = message;
-}
+    const weekValues = Object.values(dailyTotals);
+    const weekAvg = Math.round(weekValues.reduce((a, b) => a + b, 0) / 7);
+    const loggedDays = weekValues.filter(v => v > 0).length;
+    const streak = getGoalStreak();
 
+    // Saat bazli
+    const hour = new Date().getHours();
+    const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+
+    const messages = [];
+
+    // Kalori bazli ana mesaj
+    if (totals.kcal === 0) {
+        const timeMsg = {
+            morning: [
+                '🌅 Günaydın! Güne sağlıklı bir kahvaltıyla başla.',
+                '☀️ Güne enerjik başlamak için ilk öğününü kaydet.',
+                '🌟 Yeni bir gün, yeni fırsatlar! İlk kaydını ekle.'
+            ],
+            afternoon: [
+                '🕐 Öğleden sonra enerjini topla, kayıtlarına başla!',
+                '💪 Günün yarısı geçti, hedefine ulaşmak için kayıt ekle.'
+            ],
+            evening: [
+                '🌙 Akşam oldu ama geç değil! Bugünkü öğünlerini kaydet.',
+                '🍽️ Akşam yemeğini kaydetmeyi unutma!'
+            ]
+        };
+        const pool = timeMsg[timeOfDay];
+        messages.push(pool[Math.floor(Math.random() * pool.length)]);
+    } else if (remaining > 800) {
+        messages.push(`💪 Bugün için ${remaining} kcal daha alabilirsin. Gün henüz uzun!`);
+    } else if (remaining > 300) {
+        messages.push(`🎯 Hedefe yaklaşıyorsun! Sadece ${remaining} kcal kaldı.`);
+    } else if (remaining > 0) {
+        messages.push(`🔥 Son düzlük! ${remaining} kcal ile hedefine ulaşacaksın.`);
+    } else if (remaining === 0) {
+        messages.push('🎉 Mükemmel! Hedefine tam olarak ulaştın!');
+    } else if (Math.abs(remaining) < 200) {
+        messages.push(`⚡ Hedefi ${Math.abs(remaining)} kcal aştın. Hafif bir fazla, sorun değil.`);
+    } else {
+        messages.push(`⚠️ Hedefi ${Math.abs(remaining)} kcal aştın. Yarın dengelemeye çalış.`);
+    }
+
+    // Protein geri bildirimi
+    if (totals.kcal > 0) {
+        if (proteinPct >= 100) {
+            messages.push('💎 Protein hedefini tamamladın, harika!');
+        } else if (proteinPct >= 70) {
+            messages.push(`🥩 Protein iyi gidiyor: %${Math.round(proteinPct)}.`);
+        } else if (proteinPct < 40 && totals.kcal > TARGETS.kcal * 0.5) {
+            messages.push(`⚠️ Protein düşük (%${Math.round(proteinPct)}). Protein ağırlıklı bir öğün ekle.`);
+        }
+    }
+
+    // Makro dengesi yorumu
+    if (totals.kcal > 0) {
+        const macroKcal = {
+            protein: totals.protein * 4,
+            carb: totals.carb * 4,
+            fat: totals.fat * 9
+        };
+        const macroTotal = macroKcal.protein + macroKcal.carb + macroKcal.fat;
+        if (macroTotal > 0) {
+            const pPct = Math.round((macroKcal.protein / macroTotal) * 100);
+            const cPct = Math.round((macroKcal.carb / macroTotal) * 100);
+            const fPct = Math.round((macroKcal.fat / macroTotal) * 100);
+
+            if (fPct > 45) {
+                messages.push(`Makro dağılımında yağ yüksek (${pPct}/${cPct}/${fPct}). Bir sonraki öğünü daha dengeli kurabilirsin.`);
+            } else if (pPct < 20 && totals.kcal > TARGETS.kcal * 0.5) {
+                messages.push(`Makro dağılımında protein oranı düşük (${pPct}/${cPct}/${fPct}). Protein kaynağı eklemek iyi olur.`);
+            } else {
+                messages.push(`Makro dengesi iyi gidiyor (${pPct}/${cPct}/${fPct}).`);
+            }
+        }
+    }
+
+    // Haftalik trend
+    if (loggedDays >= 3) {
+        const avgDiff = weekAvg - TARGETS.kcal;
+        if (Math.abs(avgDiff) < 100) {
+            messages.push(`📊 Haftalık ort. (${weekAvg} kcal) hedefle çok uyumlu!`);
+        } else if (avgDiff > 200) {
+            messages.push(`📈 Haftalık ort. (${weekAvg} kcal) hedefin biraz üstünde.`);
+        } else if (avgDiff < -200) {
+            messages.push(`📉 Haftalık ort. (${weekAvg} kcal) hedefin altında.`);
+        }
+    } else {
+        messages.push(`📊 7 günlük ortalama: ${weekAvg} kcal.`);
+    }
+
+    // Seri tebrik
+    if (streak >= 7) {
+        messages.push(`🏆 ${streak} günlük seri! Muhteşem tutarlılık!`);
+    } else if (streak >= 3) {
+        messages.push(`🔥 ${streak} günlük seri, devam et!`);
+    }
+
+    // Yeni kullanici
+    if (loggedDays <= 1 && todayLogs.length > 0 && todayLogs.length <= 2) {
+        messages.push('🌱 Harika başlangıç! Düzenli kayıt farkındalığı artırır.');
+    }
+
+    document.getElementById('motivationText').textContent = messages.join(' ');
+}
 // Search and Add Functions
 const RECENT_ITEMS_KEY = 'recentItems';
 const MAX_RESULTS = 30;
@@ -979,6 +1107,266 @@ function openDropdownForInput(searchTerm, itemType) {
     const filtered = filterItems(searchTerm, itemType);
     renderDropdown(filtered, { searchTerm });
 }
+
+// --- Product Catalog ---
+let catalogCategory = 'all';
+let catalogSearchTerm = '';
+
+function getCatalogItems() {
+    let items = [];
+    if (catalogCategory === 'all' || catalogCategory === 'food') {
+        items = items.concat(foods.map(f => ({ ...f, _type: 'food' })));
+    }
+    if (catalogCategory === 'all' || catalogCategory === 'drink') {
+        items = items.concat(drinks.map(d => ({ ...d, _type: 'drink' })));
+    }
+    if (catalogSearchTerm) {
+        const term = catalogSearchTerm.toLowerCase();
+        items = items.filter(item => item.name.toLowerCase().includes(term));
+    }
+    items.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+    return items;
+}
+
+function renderCatalog() {
+    const items = getCatalogItems();
+    const listEl = document.getElementById('catalogList');
+    const countEl = document.getElementById('catalogCount');
+
+    countEl.textContent = `${items.length} ürün`;
+
+    if (items.length === 0) {
+        listEl.innerHTML = '<div class="catalog-empty">Sonuç bulunamadı.</div>';
+        return;
+    }
+
+    listEl.innerHTML = items.map(item => `
+        <div class="catalog-item">
+            <div class="catalog-item-header">
+                <span class="catalog-item-name">${escapeHtml(item.name)}</span>
+                <span class="catalog-item-type-badge">${item._type === 'food' ? '🍗' : '🥤'}</span>
+            </div>
+            <div class="catalog-item-macros">
+                <span class="macro-badge badge-kcal">🔥 ${item.kcal_100} kcal</span>
+                <span class="macro-badge badge-protein">P ${item.protein_100}g</span>
+                <span class="macro-badge badge-carb">K ${item.carb_100}g</span>
+                <span class="macro-badge badge-fat">Y ${item.fat_100}g</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+// --- Meal Templates ---
+const TEMPLATES_KEY = 'mealTemplates';
+let currentTemplateItems = [];
+let tplSelectedItem = null;
+let tplDropdownItems = [];
+
+function loadTemplates() {
+    try {
+        const stored = JSON.parse(localStorage.getItem(TEMPLATES_KEY));
+        return Array.isArray(stored) ? stored : [];
+    } catch { return []; }
+}
+
+function saveTemplates(templates) {
+    localStorage.setItem(TEMPLATES_KEY, JSON.stringify(templates));
+}
+
+async function addLogBatch(items) {
+    const today = getToday();
+
+    for (const entry of items) {
+        const source = entry.type === 'food' ? foods : drinks;
+        const item = source.find(s => s.id === entry.item_id);
+        if (!item) continue;
+
+        const multiplier = entry.grams / 100;
+        const logData = {
+            date: today,
+            item_id: item.id,
+            item_name: item.name,
+            grams: entry.grams,
+            kcal: Math.round(item.kcal_100 * multiplier),
+            protein: Math.round(item.protein_100 * multiplier * 10) / 10,
+            carb: Math.round(item.carb_100 * multiplier * 10) / 10,
+            fat: Math.round(item.fat_100 * multiplier * 10) / 10,
+            created_at: serverTimestamp()
+        };
+
+        try {
+            await addDoc(collection(db, 'daily_logs'), logData);
+        } catch (err) {
+            console.error('Batch log eklenemedi:', err);
+        }
+    }
+}
+function renderTemplateList() {
+    const templates = loadTemplates();
+    const listEl = document.getElementById('templatesList');
+
+    if (templates.length === 0) {
+        listEl.innerHTML = '<div class="template-empty">Henüz şablon yok. İlk şablonunu oluştur!</div>';
+        return;
+    }
+
+    listEl.innerHTML = templates.map(tpl => {
+        const totalKcal = tpl.items.reduce((sum, ti) => {
+            const source = ti.type === 'food' ? foods : drinks;
+            const found = source.find(s => s.id === ti.item_id);
+            return found ? sum + Math.round(found.kcal_100 * ti.grams / 100) : sum;
+        }, 0);
+
+        return `
+            <div class="template-card" data-id="${tpl.id}">
+                <div class="template-card-header">
+                    <div>
+                        <div class="template-card-name">${escapeHtml(tpl.name)}</div>
+                        <div class="template-card-info">${tpl.items.length} ürün · ~${totalKcal} kcal</div>
+                    </div>
+                    <div class="template-card-actions">
+                        <button class="btn btn-primary btn-sm template-apply" data-id="${tpl.id}">Uygula</button>
+                        <button class="btn btn-secondary btn-sm template-delete" data-id="${tpl.id}">🗑️</button>
+                    </div>
+                </div>
+                <div class="template-card-items">
+                    ${tpl.items.map(ti => `<span class="template-item-pill">${escapeHtml(ti.item_name)} (${ti.grams}g)</span>`).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    listEl.querySelectorAll('.template-apply').forEach(btn => {
+        btn.addEventListener('click', () => applyTemplate(btn.dataset.id));
+    });
+    listEl.querySelectorAll('.template-delete').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (confirm('Bu şablonu silmek istediğinize emin misiniz?')) {
+                deleteTemplate(btn.dataset.id);
+            }
+        });
+    });
+}
+
+async function applyTemplate(templateId) {
+    const templates = loadTemplates();
+    const tpl = templates.find(t => t.id === templateId);
+    if (!tpl) return;
+    // Batch: tum loglari ekle, sonra tek seferde yenile
+    await addLogBatch(tpl.items);
+    // Tek seferde yenile
+    await loadTodayLogs();
+    await loadWeekLogs();
+    if (typeof window.switchTab === 'function') {
+        window.switchTab('logs');
+    }
+}
+
+function deleteTemplate(templateId) {
+    const templates = loadTemplates().filter(t => t.id !== templateId);
+    saveTemplates(templates);
+    renderTemplateList();
+}
+
+function showTemplateForm() {
+    document.getElementById('templateListView').style.display = 'none';
+    document.getElementById('templateFormView').style.display = 'block';
+    document.getElementById('templateName').value = '';
+    currentTemplateItems = [];
+    tplSelectedItem = null;
+    renderTemplateFormItems();
+}
+
+function hideTemplateForm() {
+    document.getElementById('templateFormView').style.display = 'none';
+    document.getElementById('templateListView').style.display = 'block';
+    currentTemplateItems = [];
+    tplSelectedItem = null;
+}
+
+function renderTemplateFormItems() {
+    const listEl = document.getElementById('templateItemsList');
+    if (currentTemplateItems.length === 0) {
+        listEl.innerHTML = '<div class="template-empty-items">Henüz ürün eklenmedi.</div>';
+        return;
+    }
+    listEl.innerHTML = currentTemplateItems.map((item, i) => `
+        <div class="template-form-item">
+            <span class="template-form-item-name">${escapeHtml(item.item_name)} - ${item.grams}g</span>
+            <button class="template-form-item-remove" data-index="${i}">✕</button>
+        </div>
+    `).join('');
+
+    listEl.querySelectorAll('.template-form-item-remove').forEach(btn => {
+        btn.addEventListener('click', () => {
+            currentTemplateItems.splice(parseInt(btn.dataset.index), 1);
+            renderTemplateFormItems();
+        });
+    });
+}
+
+function saveCurrentTemplate() {
+    const name = document.getElementById('templateName').value.trim();
+    if (!name) { alert('Lütfen şablon adı girin.'); return; }
+    if (currentTemplateItems.length === 0) { alert('Lütfen en az bir ürün ekleyin.'); return; }
+
+    const template = {
+        id: 'tpl_' + Date.now(),
+        name,
+        items: currentTemplateItems.map(ti => ({
+            item_id: ti.item_id, item_name: ti.item_name, grams: ti.grams, type: ti.type
+        }))
+    };
+    const templates = loadTemplates();
+    templates.push(template);
+    saveTemplates(templates);
+    hideTemplateForm();
+    renderTemplateList();
+}
+
+function renderTplDropdown(items, searchTerm) {
+    const dropdown = document.getElementById('tplDropdown');
+    tplDropdownItems = items;
+
+    if (items.length === 0) {
+        dropdown.innerHTML = '<div class="dropdown-item">Sonuç bulunamadı</div>';
+        dropdown.classList.add('active');
+        return;
+    }
+
+    dropdown.innerHTML = items.map((item, index) => `
+        <div class="dropdown-item${index === 0 ? ' active' : ''}" data-index="${index}">
+            <div class="dropdown-item-name">${highlightMatch(item.name, searchTerm)}</div>
+            <div class="dropdown-item-info">
+                <span class="macro-badge badge-kcal">🔥 ${item.kcal_100} kcal</span>
+                <span class="macro-badge badge-protein">P ${item.protein_100}g</span>
+            </div>
+        </div>
+    `).join('');
+    dropdown.classList.add('active');
+
+    dropdown.querySelectorAll('.dropdown-item[data-index]').forEach(el => {
+        el.addEventListener('click', () => {
+            const idx = parseInt(el.dataset.index);
+            const selected = tplDropdownItems[idx];
+            if (selected) {
+                tplSelectedItem = selected;
+                document.getElementById('tplSearchInput').value = selected.name;
+                dropdown.classList.remove('active');
+                document.getElementById('tplGramsInput').focus();
+            }
+        });
+    });
+}
+
+function closeTplDropdown() {
+    document.getElementById('tplDropdown').classList.remove('active');
+    tplDropdownItems = [];
+}
+
+window.renderCatalog = renderCatalog;
+window.renderTemplateList = renderTemplateList;
+
 // Load custom items from Firestore
 async function loadCustomItems() {
     try {
@@ -1350,4 +1738,73 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     renderWeightSection();
+
+    // --- Catalog Event Listeners ---
+    document.querySelectorAll('.catalog-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.catalog-filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            catalogCategory = btn.dataset.category;
+            renderCatalog();
+        });
+    });
+
+    document.getElementById('catalogSearch').addEventListener('input', (e) => {
+        catalogSearchTerm = e.target.value.trim();
+        renderCatalog();
+    });
+
+    // --- Template Event Listeners ---
+    document.getElementById('createTemplateBtn').addEventListener('click', showTemplateForm);
+    document.getElementById('backToTemplates').addEventListener('click', hideTemplateForm);
+    document.getElementById('saveTemplate').addEventListener('click', saveCurrentTemplate);
+
+    // Template search
+    const tplSearchInput = document.getElementById('tplSearchInput');
+    tplSearchInput.addEventListener('input', (e) => {
+        const itemType = document.querySelector('input[name="tplItemType"]:checked').value;
+        const term = e.target.value.trim();
+        tplSelectedItem = null;
+        if (!term) { closeTplDropdown(); return; }
+        const items = itemType === 'food' ? foods : drinks;
+        const filtered = items.filter(i => i.name.toLowerCase().includes(term.toLowerCase())).slice(0, 15);
+        renderTplDropdown(filtered, term);
+    });
+
+    // Template item type change
+    document.querySelectorAll('input[name="tplItemType"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            tplSelectedItem = null;
+            document.getElementById('tplSearchInput').value = '';
+            closeTplDropdown();
+            // Miktar label guncelle
+            const label = document.getElementById('tplAmountLabel');
+            if (e.target.value === 'drink') {
+                label.textContent = 'Miktar (ml)';
+            } else {
+                label.textContent = 'Miktar (gram)';
+            }
+        });
+    });
+
+    // Add item to template
+    document.getElementById('addItemToTemplate').addEventListener('click', () => {
+        if (!tplSelectedItem) { alert('Lütfen bir ürün seçin.'); return; }
+        const grams = parseInt(document.getElementById('tplGramsInput').value);
+        if (!grams || grams <= 0) { alert('Lütfen geçerli bir miktar girin.'); return; }
+        const itemType = document.querySelector('input[name="tplItemType"]:checked').value;
+
+        currentTemplateItems.push({
+            item_id: tplSelectedItem.id,
+            item_name: tplSelectedItem.name,
+            grams,
+            type: itemType
+        });
+
+        tplSelectedItem = null;
+        document.getElementById('tplSearchInput').value = '';
+        document.getElementById('tplGramsInput').value = '';
+        closeTplDropdown();
+        renderTemplateFormItems();
+    });
 });

@@ -1,4 +1,4 @@
-// Yiyecekler Listesi
+﻿// Yiyecekler Listesi
 // Her ürün 100 gram başına değerleri içerir
 // Kolayca düzenlenebilir - yeni ürün eklemek için listeye ekleyin
 
@@ -229,7 +229,7 @@ export const foods = [
     },
     {
         id: 'food_029',
-        name: 'Çilек',
+        name: 'Çilek',
         kcal_100: 32,
         protein_100: 0.7,
         carb_100: 8,
@@ -267,5 +267,86 @@ export const foods = [
         protein_100: 2,
         carb_100: 4,
         fat_100: 0.5
+    },
+    {
+        id: 'food_034',
+        name: 'Hindi Gogsu (Izgara)',
+        kcal_100: 135,
+        protein_100: 29,
+        carb_100: 0,
+        fat_100: 1.5
+    },
+    {
+        id: 'food_035',
+        name: 'Nohut (Pismis)',
+        kcal_100: 164,
+        protein_100: 8.9,
+        carb_100: 27,
+        fat_100: 2.6
+    },
+    {
+        id: 'food_036',
+        name: 'Beyaz Pirinc (Pismis)',
+        kcal_100: 129,
+        protein_100: 2.4,
+        carb_100: 28.7,
+        fat_100: 0.3
+    },
+    {
+        id: 'food_037',
+        name: 'Esmer Pirinc (Pismis)',
+        kcal_100: 123,
+        protein_100: 2.7,
+        carb_100: 25.6,
+        fat_100: 1
+    },
+    {
+        id: 'food_038',
+        name: 'Tatli Patates (Firinda)',
+        kcal_100: 90,
+        protein_100: 2,
+        carb_100: 21,
+        fat_100: 0.2
+    },
+    {
+        id: 'food_039',
+        name: 'Kabak (Izgara)',
+        kcal_100: 20,
+        protein_100: 1.2,
+        carb_100: 3.1,
+        fat_100: 0.3
+    },
+    {
+        id: 'food_040',
+        name: 'Mantar (Sote)',
+        kcal_100: 35,
+        protein_100: 3,
+        carb_100: 3.3,
+        fat_100: 1.5
+    },
+    {
+        id: 'food_041',
+        name: 'Yagisiz Kiyma (Pismis)',
+        kcal_100: 217,
+        protein_100: 26,
+        carb_100: 0,
+        fat_100: 12
+    },
+    {
+        id: 'food_042',
+        name: 'Kefir',
+        kcal_100: 63,
+        protein_100: 3.3,
+        carb_100: 4.7,
+        fat_100: 3
+    },
+    {
+        id: 'food_043',
+        name: 'Kepekli Tortilla',
+        kcal_100: 310,
+        protein_100: 9,
+        carb_100: 52,
+        fat_100: 7
     }
 ];
+
