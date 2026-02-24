@@ -507,6 +507,14 @@ export const foods = [
         protein_100: 8.5,
         carb_100: 30,
         fat_100: 15.5
+    },
+    {
+        id: 'food_064',
+        name: 'Kreatin Monohidrat',
+        kcal_100: 0,
+        protein_100: 0,
+        carb_100: 0,
+        fat_100: 0
     }
 ];
 
