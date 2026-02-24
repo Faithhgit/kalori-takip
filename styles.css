@@ -657,6 +657,62 @@ h1, h2, h3 {
     box-shadow: var(--shadow-md);
 }
 
+.logs-toolbar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.logs-filter-group {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+}
+
+.logs-filter-field {
+    min-width: 190px;
+}
+
+.logs-filter-field label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+}
+
+.logs-date-input {
+    min-width: 190px;
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: 0.92rem;
+}
+
+.log-date-input {
+    font-variant-numeric: tabular-nums;
+}
+
+.logs-clear-btn {
+    display: none;
+    margin-bottom: 1px;
+}
+
+.logs-clear-btn.is-visible {
+    display: inline-flex;
+}
+
+.logs-count {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+}
+
 .logs-container {
     display: flex;
     flex-direction: column;
@@ -811,6 +867,16 @@ h1, h2, h3 {
     box-shadow: var(--shadow-md);
 }
 
+.add-meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.add-meta-grid .form-group {
+    margin-bottom: 0;
+}
+
 .form-group {
     margin-bottom: 20px;
     position: relative;
@@ -862,7 +928,8 @@ h1, h2, h3 {
 }
 
 input[type="text"],
-input[type="number"] {
+input[type="number"],
+input[type="date"] {
     width: 100%;
     padding: 14px 16px;
     background: var(--bg-secondary);
@@ -875,11 +942,22 @@ input[type="number"] {
 }
 
 input[type="text"]:focus,
-input[type="number"]:focus {
+input[type="number"]:focus,
+input[type="date"]:focus {
     outline: none;
     border-color: var(--accent-primary);
     background: var(--bg-card);
     box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+input[type="date"] {
+    min-height: 52px;
+    color-scheme: dark;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.76) sepia(8%) saturate(750%) hue-rotate(175deg) brightness(0.95);
+    cursor: pointer;
 }
 
 input::placeholder {
@@ -1215,6 +1293,31 @@ input::placeholder {
     border-top: 2px solid var(--bg-secondary);
 }
 
+.settings-reset-box {
+    border: 1px solid rgba(229, 106, 106, 0.35);
+    background: rgba(229, 106, 106, 0.08);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    margin-top: 4px;
+}
+
+.settings-reset-text {
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    margin-bottom: 10px;
+}
+
+.btn-danger-soft {
+    background: rgba(229, 106, 106, 0.18);
+    color: #ffd8d8;
+    border: 1px solid rgba(229, 106, 106, 0.55);
+    width: 100%;
+}
+
+.btn-danger-soft:hover {
+    background: rgba(229, 106, 106, 0.28);
+}
+
 /* Motivation Card */
 .motivation-card {
     background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
@@ -1300,8 +1403,25 @@ input::placeholder {
     }
 
     .custom-macros-grid,
-    .preview-grid {
+    .preview-grid,
+    .add-meta-grid {
         grid-template-columns: 1fr;
+    }
+
+    .logs-toolbar,
+    .logs-filter-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .logs-filter-field,
+    .logs-date-input {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .logs-count {
+        margin-top: 2px;
     }
 
     .weight-input-row {
@@ -1970,12 +2090,14 @@ header {
 
 input[type="text"],
 input[type="number"],
+input[type="date"],
 select {
     border-color: rgba(173, 189, 216, 0.2);
 }
 
 input[type="text"]:focus,
 input[type="number"]:focus,
+input[type="date"]:focus,
 select:focus {
     border-color: rgba(111, 149, 255, 0.7);
     box-shadow: 0 0 0 3px rgba(111, 149, 255, 0.18);
@@ -2291,5 +2413,9 @@ body.light-mode::before {
         radial-gradient(42% 34% at 14% 22%, rgba(47, 99, 224, 0.11), transparent 70%),
         radial-gradient(34% 28% at 82% 12%, rgba(29, 184, 132, 0.09), transparent 70%),
         radial-gradient(40% 30% at 50% 88%, rgba(93, 114, 217, 0.08), transparent 70%);
+}
+
+body.light-mode input[type="date"] {
+    color-scheme: light;
 }
 

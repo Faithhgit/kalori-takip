@@ -1,5 +1,5 @@
 ﻿import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getFirestore, collection, addDoc, query, where, getDocs, getDoc, deleteDoc, doc, setDoc, updateDoc, serverTimestamp, orderBy } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getFirestore, collection, addDoc, query, where, getDocs, getDoc, deleteDoc, doc, setDoc, updateDoc, serverTimestamp, orderBy, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
 import { foods } from './data/foods.js';
 import { drinks } from './data/drinks.js';
@@ -8,24 +8,25 @@ import { drinks } from './data/drinks.js';
 const TARGETS_KEY = 'calorieTargets';
 const SETTINGS_COLLECTION = 'app_settings';
 const SETTINGS_DOC_ID = 'default_settings';
+const TEMPLATES_SETTINGS_DOC_ID = 'meal_templates';
+const DEFAULT_TARGETS = Object.freeze({
+    kcal: 2200,
+    protein: 150,
+    carb: 250,
+    fat: 70
+});
 let TARGETS = loadTargets();
+
+function getDefaultTargets() {
+    return { ...DEFAULT_TARGETS };
+}
 
 function loadTargets() {
     try {
         const stored = JSON.parse(localStorage.getItem(TARGETS_KEY));
-        return stored || {
-            kcal: 2200,
-            protein: 150,
-            carb: 250,
-            fat: 70
-        };
+        return stored || getDefaultTargets();
     } catch (error) {
-        return {
-            kcal: 2200,
-            protein: 150,
-            carb: 250,
-            fat: 70
-        };
+        return getDefaultTargets();
     }
 }
 
@@ -534,6 +535,7 @@ let todayLogs = [];
 let recentLogs = [];
 let weekLogs = [];
 const LOG_HISTORY_DAYS = 14;
+let logsDateFilter = '';
 
 // Initialize Firebase
 try {
@@ -553,6 +555,11 @@ function getToday() {
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+}
+
+function getSelectedLogDate() {
+    const logDateInput = document.getElementById('logDate');
+    return logDateInput?.value || getToday();
 }
 
 function formatDate(dateStr) {
@@ -711,6 +718,16 @@ function showError(message) {
     errorEl.style.display = 'block';
 }
 
+function clearError() {
+    const errorEl = document.getElementById('errorMessage');
+    errorEl.textContent = '';
+    errorEl.style.display = 'none';
+}
+
+function showLoading() {
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+}
+
 function hideLoading() {
     document.getElementById('loadingOverlay').classList.add('hidden');
 }
@@ -817,13 +834,12 @@ function updateGoalStreak() {
     }
 }
 
-async function addLog(item, grams) {
+async function addLog(item, grams, logDate = getToday()) {
     try {
-        const today = getToday();
         const multiplier = grams / 100;
         
         const logData = {
-            date: today,
+            date: logDate,
             item_id: item.id,
             item_name: item.name,
             grams: grams,
@@ -959,10 +975,27 @@ async function deleteCustomItem(itemId) {
 // Render Functions
 function renderLogs() {
     const container = document.getElementById('logsContainer');
-    const logsForList = recentLogs.length > 0 ? recentLogs : todayLogs;
+    const countEl = document.getElementById('logsCount');
+    const clearFilterBtn = document.getElementById('clearLogsDateFilter');
+    const baseLogs = recentLogs.length > 0 ? recentLogs : todayLogs;
+    const logsForList = logsDateFilter
+        ? baseLogs.filter(log => log.date === logsDateFilter)
+        : baseLogs;
+
+    if (countEl) {
+        countEl.textContent = logsDateFilter
+            ? `${logsForList.length} kayıt · ${formatDate(logsDateFilter)}`
+            : `${logsForList.length} kayıt`;
+    }
+
+    if (clearFilterBtn) {
+        clearFilterBtn.classList.toggle('is-visible', Boolean(logsDateFilter));
+    }
 
     if (logsForList.length === 0) {
-        container.innerHTML = '<div class="no-logs">Henüz kayıt yok. Yeni kayıt ekleyerek başlayın!</div>';
+        container.innerHTML = logsDateFilter
+            ? `<div class="no-logs">${formatDate(logsDateFilter)} tarihinde kayıt bulunamadı.</div>`
+            : '<div class="no-logs">Henüz kayıt yok. Yeni kayıt ekleyerek başlayın!</div>';
         return;
     }
 
@@ -1679,23 +1712,127 @@ function renderCatalog() {
 
 // --- Meal Templates ---
 const TEMPLATES_KEY = 'mealTemplates';
+let templateCache = [];
 let currentTemplateItems = [];
 let tplSelectedItem = null;
 let tplDropdownItems = [];
 
-function loadTemplates() {
+function normalizeTemplate(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const name = String(raw.name || '').trim();
+    const id = String(raw.id || '').trim();
+    if (!name || !id || !Array.isArray(raw.items)) return null;
+
+    const items = raw.items
+        .map((entry) => ({
+            item_id: String(entry?.item_id || '').trim(),
+            item_name: String(entry?.item_name || '').trim(),
+            grams: Number(entry?.grams),
+            type: entry?.type === 'drink' ? 'drink' : 'food'
+        }))
+        .filter((entry) => entry.item_id && entry.item_name && entry.grams > 0);
+
+    if (items.length === 0) return null;
+
+    return { id, name, items };
+}
+
+function normalizeTemplates(rawTemplates) {
+    if (!Array.isArray(rawTemplates)) return [];
+
+    const normalized = [];
+    const seen = new Set();
+    rawTemplates.forEach((tpl) => {
+        const parsed = normalizeTemplate(tpl);
+        if (!parsed || seen.has(parsed.id)) return;
+        seen.add(parsed.id);
+        normalized.push(parsed);
+    });
+    return normalized;
+}
+
+function loadTemplatesFromLocal() {
     try {
         const stored = JSON.parse(localStorage.getItem(TEMPLATES_KEY));
-        return Array.isArray(stored) ? stored : [];
+        return normalizeTemplates(stored);
     } catch { return []; }
 }
 
-function saveTemplates(templates) {
-    localStorage.setItem(TEMPLATES_KEY, JSON.stringify(templates));
+function saveTemplatesToLocal(templates) {
+    localStorage.setItem(TEMPLATES_KEY, JSON.stringify(normalizeTemplates(templates)));
 }
 
-async function addLogBatch(items) {
-    const today = getToday();
+async function loadTemplatesFromCloud() {
+    if (!db) return [];
+
+    try {
+        const templateRef = doc(db, SETTINGS_COLLECTION, TEMPLATES_SETTINGS_DOC_ID);
+        const snap = await getDoc(templateRef);
+        if (!snap.exists()) return [];
+        const data = snap.data() || {};
+        return normalizeTemplates(data.templates);
+    } catch (error) {
+        console.warn('Cloud templates could not be loaded:', error);
+        return [];
+    }
+}
+
+async function saveTemplatesToCloud(templates) {
+    if (!db) return false;
+
+    try {
+        const templateRef = doc(db, SETTINGS_COLLECTION, TEMPLATES_SETTINGS_DOC_ID);
+        await setDoc(templateRef, {
+            templates: normalizeTemplates(templates),
+            updated_at: serverTimestamp()
+        }, { merge: true });
+        return true;
+    } catch (error) {
+        console.warn('Cloud templates could not be saved:', error);
+        return false;
+    }
+}
+
+async function initializeTemplates() {
+    const localTemplates = loadTemplatesFromLocal();
+    templateCache = localTemplates;
+
+    const cloudTemplates = await loadTemplatesFromCloud();
+
+    if (cloudTemplates.length === 0) {
+        if (localTemplates.length > 0) {
+            await saveTemplatesToCloud(localTemplates);
+        }
+        return;
+    }
+
+    if (localTemplates.length === 0) {
+        templateCache = cloudTemplates;
+        saveTemplatesToLocal(templateCache);
+        return;
+    }
+
+    const mergedById = new Map();
+    cloudTemplates.forEach((tpl) => mergedById.set(tpl.id, tpl));
+    localTemplates.forEach((tpl) => {
+        if (!mergedById.has(tpl.id)) mergedById.set(tpl.id, tpl);
+    });
+
+    templateCache = [...mergedById.values()];
+    saveTemplatesToLocal(templateCache);
+    await saveTemplatesToCloud(templateCache);
+}
+
+function loadTemplates() {
+    return [...templateCache];
+}
+
+function saveTemplates(templates) {
+    templateCache = normalizeTemplates(templates);
+    saveTemplatesToLocal(templateCache);
+}
+
+async function addLogBatch(items, logDate = getToday()) {
 
     for (const entry of items) {
         const source = entry.type === 'food' ? foods : drinks;
@@ -1704,7 +1841,7 @@ async function addLogBatch(items) {
 
         const multiplier = entry.grams / 100;
         const logData = {
-            date: today,
+            date: logDate,
             item_id: item.id,
             item_name: item.name,
             grams: entry.grams,
@@ -1761,9 +1898,9 @@ function renderTemplateList() {
         btn.addEventListener('click', () => applyTemplate(btn.dataset.id));
     });
     listEl.querySelectorAll('.template-delete').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
             if (confirm('Bu şablonu silmek istediğinize emin misiniz?')) {
-                deleteTemplate(btn.dataset.id);
+                await deleteTemplate(btn.dataset.id);
             }
         });
     });
@@ -1773,8 +1910,9 @@ async function applyTemplate(templateId) {
     const templates = loadTemplates();
     const tpl = templates.find(t => t.id === templateId);
     if (!tpl) return;
+    const logDate = getSelectedLogDate();
     // Batch: tum loglari ekle, sonra tek seferde yenile
-    await addLogBatch(tpl.items);
+    await addLogBatch(tpl.items, logDate);
     // Tek seferde yenile
     await loadTodayLogs();
         await loadRecentLogs();
@@ -1784,10 +1922,15 @@ async function applyTemplate(templateId) {
     }
 }
 
-function deleteTemplate(templateId) {
+async function deleteTemplate(templateId) {
     const templates = loadTemplates().filter(t => t.id !== templateId);
     saveTemplates(templates);
     renderTemplateList();
+
+    const cloudSaved = await saveTemplatesToCloud(templates);
+    if (!cloudSaved) {
+        showError('Sablon Firebase\'e kaydedilemedi. Firestore kurallarini kontrol edin.');
+    }
 }
 
 function showTemplateForm() {
@@ -1827,7 +1970,7 @@ function renderTemplateFormItems() {
     });
 }
 
-function saveCurrentTemplate() {
+async function saveCurrentTemplate() {
     const name = document.getElementById('templateName').value.trim();
     if (!name) { alert('Lütfen şablon adı girin.'); return; }
     if (currentTemplateItems.length === 0) { alert('Lütfen en az bir ürün ekleyin.'); return; }
@@ -1844,6 +1987,11 @@ function saveCurrentTemplate() {
     saveTemplates(templates);
     hideTemplateForm();
     renderTemplateList();
+
+    const cloudSaved = await saveTemplatesToCloud(templates);
+    if (!cloudSaved) {
+        showError('Sablon Firebase\'e kaydedilemedi. Firestore kurallarini kontrol edin.');
+    }
 }
 
 function renderTplDropdown(items, searchTerm) {
@@ -1886,6 +2034,217 @@ function renderTplDropdown(items, searchTerm) {
 function closeTplDropdown() {
     document.getElementById('tplDropdown').classList.remove('active');
     tplDropdownItems = [];
+}
+
+async function deleteCollectionDocsInBatches(collectionName) {
+    const snap = await getDocs(collection(db, collectionName));
+    if (snap.empty) return 0;
+
+    let deletedCount = 0;
+    let batch = writeBatch(db);
+    let batchSize = 0;
+
+    for (const docSnap of snap.docs) {
+        batch.delete(docSnap.ref);
+        deletedCount++;
+        batchSize++;
+
+        if (batchSize >= 400) {
+            await batch.commit();
+            batch = writeBatch(db);
+            batchSize = 0;
+        }
+    }
+
+    if (batchSize > 0) {
+        await batch.commit();
+    }
+
+    return deletedCount;
+}
+
+async function resetCloudData() {
+    const warnings = [];
+
+    if (!db) {
+        warnings.push('Firebase baglantisi olmadigi icin bulut verileri sifirlanamadi.');
+        return warnings;
+    }
+
+    try {
+        await deleteCollectionDocsInBatches('daily_logs');
+    } catch (error) {
+        console.warn('daily_logs reset failed:', error);
+        warnings.push('Gunluk kayitlar Firebase tarafinda silinemedi.');
+    }
+
+    try {
+        await deleteCollectionDocsInBatches('custom_items');
+    } catch (error) {
+        console.warn('custom_items reset failed:', error);
+        warnings.push('Ozel urunler Firebase tarafinda silinemedi.');
+    }
+
+    try {
+        await deleteCollectionDocsInBatches(WEIGHT_LOG_COLLECTION);
+    } catch (error) {
+        console.warn('weight_logs reset failed:', error);
+        warnings.push('Kilo gecmisi Firebase tarafinda silinemedi.');
+    }
+
+    try {
+        await deleteDoc(doc(db, SETTINGS_COLLECTION, SETTINGS_DOC_ID));
+    } catch (error) {
+        console.warn('app_settings reset failed:', error);
+        warnings.push('Ayarlar Firebase tarafinda silinemedi.');
+    }
+
+    try {
+        await deleteDoc(doc(db, SETTINGS_COLLECTION, TEMPLATES_SETTINGS_DOC_ID));
+    } catch (error) {
+        console.warn('templates reset failed:', error);
+        warnings.push('Sablonlar Firebase tarafinda silinemedi.');
+    }
+
+    return warnings;
+}
+
+function removeCustomItemsFromLocalArrays() {
+    for (let i = foods.length - 1; i >= 0; i--) {
+        if (typeof foods[i].id === 'string' && foods[i].id.startsWith('custom_')) {
+            foods.splice(i, 1);
+        }
+    }
+
+    for (let i = drinks.length - 1; i >= 0; i--) {
+        if (typeof drinks[i].id === 'string' && drinks[i].id.startsWith('custom_')) {
+            drinks.splice(i, 1);
+        }
+    }
+}
+
+function resetLocalData() {
+    const keysToRemove = [
+        TARGETS_KEY,
+        PROFILE_KEY,
+        WEIGHT_LOG_KEY,
+        RECENT_ITEMS_KEY,
+        TEMPLATES_KEY,
+        LAUNCH_MOTIVATION_LAST_KEY
+    ];
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+
+    removeCustomItemsFromLocalArrays();
+
+    todayLogs = [];
+    recentLogs = [];
+    weekLogs = [];
+    selectedItem = null;
+    templateCache = [];
+    currentDropdownItems = [];
+    currentDropdownIndex = -1;
+    currentTemplateItems = [];
+    tplSelectedItem = null;
+    tplDropdownItems = [];
+    catalogCategory = 'all';
+    catalogSearchTerm = '';
+    logsDateFilter = '';
+    launchMotivationMessage = null;
+    weightLogCache = [];
+
+    saveProfile({});
+    saveWeightLog([]);
+    saveTargets(getDefaultTargets());
+}
+
+function refreshUiAfterReset() {
+    const setInputValue = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.value = value;
+    };
+
+    const targetDisplay = document.getElementById('targetKcalDisplay');
+    if (targetDisplay) targetDisplay.textContent = TARGETS.kcal;
+
+    setInputValue('profileGender', '');
+    setInputValue('profileAge', '');
+    setInputValue('profileHeight', '');
+    setInputValue('profileWeight', '');
+    setInputValue('profileActivity', '1.2');
+    setInputValue('profileTrainingDays', '');
+    setInputValue('profileSteps', '');
+    setInputValue('profileGoalMode', 'cut_moderate');
+
+    setInputValue('targetKcal', TARGETS.kcal);
+    setInputValue('targetProtein', TARGETS.protein);
+    setInputValue('targetCarb', TARGETS.carb);
+    setInputValue('targetFat', TARGETS.fat);
+
+    setInputValue('weightInput', '');
+    setInputValue('weightDate', getToday());
+    setInputValue('logDate', getToday());
+    setInputValue('logsDateFilter', '');
+
+    setInputValue('searchInput', '');
+    setInputValue('gramsInput', '');
+    setInputValue('customName', '');
+    setInputValue('customKcal', '');
+    setInputValue('customProtein', '');
+    setInputValue('customCarb', '');
+    setInputValue('customFat', '');
+    setInputValue('catalogSearch', '');
+    setInputValue('templateName', '');
+    setInputValue('tplSearchInput', '');
+    setInputValue('tplGramsInput', '');
+
+    const goalRecommendation = document.getElementById('goalRecommendation');
+    if (goalRecommendation) goalRecommendation.style.display = 'none';
+
+    const previewEl = document.getElementById('calculationPreview');
+    if (previewEl) previewEl.style.display = 'none';
+
+    const itemTypeFood = document.querySelector('input[name="itemType"][value="food"]');
+    if (itemTypeFood) itemTypeFood.checked = true;
+
+    const customType = document.getElementById('customType');
+    if (customType) customType.value = 'food';
+
+    const presetSection = document.getElementById('preset-section');
+    if (presetSection) presetSection.style.display = 'block';
+    const customSection = document.getElementById('custom-section');
+    if (customSection) customSection.style.display = 'none';
+
+    const amountLabel = document.getElementById('amountLabel');
+    if (amountLabel) amountLabel.textContent = 'Miktar (gram)';
+    const gramsInput = document.getElementById('gramsInput');
+    if (gramsInput) gramsInput.placeholder = '100';
+
+    document.querySelectorAll('.catalog-filter-btn').forEach((btn) => btn.classList.remove('active'));
+    const allCatalogBtn = document.querySelector('.catalog-filter-btn[data-category="all"]');
+    if (allCatalogBtn) allCatalogBtn.classList.add('active');
+
+    closeDropdown();
+    closeTplDropdown();
+    hideTemplateForm();
+    if (typeof window.switchTab === 'function') {
+        window.switchTab('logs');
+    }
+
+    updateSummary();
+    renderLogs();
+    renderChart();
+    updateMotivation();
+    updateGoalStreak();
+    renderWeightSection();
+    renderCatalog();
+    renderTemplateList();
+}
+
+async function resetApplicationData() {
+    const cloudWarnings = await resetCloudData();
+    resetLocalData();
+    refreshUiAfterReset();
+    return cloudWarnings;
 }
 
 function setupMobileCollapsibles() {
@@ -1989,9 +2348,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Set date display
     const today = getToday();
     document.getElementById('dateDisplay').textContent = formatDate(today);
+    const logDateInput = document.getElementById('logDate');
+    if (logDateInput) logDateInput.value = today;
+    const logsDateFilterInput = document.getElementById('logsDateFilter');
+    if (logsDateFilterInput) logsDateFilterInput.value = '';
 
     // Load data
     await loadCustomItems();
+    await initializeTemplates();
     await loadSettingsFromCloud();
     await initializeWeightLog();
     await loadTodayLogs();
@@ -2123,6 +2487,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('addButton').addEventListener('click', async () => {
         const itemType = document.querySelector('input[name="itemType"]:checked').value;
         const grams = parseInt(document.getElementById('gramsInput').value);
+        const logDate = getSelectedLogDate();
+
+        if (!logDate) {
+            alert('Lütfen kayıt tarihi seçin.');
+            return;
+        }
 
         if (itemType === 'custom') {
             // Handle custom item
@@ -2171,7 +2541,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.warn('Custom item not saved to Firestore:', error);
             }
 
-            addLog(customItem, grams);
+            await addLog(customItem, grams, logDate);
 
             // Clear custom form
             document.getElementById('customName').value = '';
@@ -2191,7 +2561,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
-            addLog(selectedItem, grams);
+            await addLog(selectedItem, grams, logDate);
         }
     });
     
@@ -2208,6 +2578,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const closeSettings = document.getElementById('closeSettings');
     const cancelSettings = document.getElementById('cancelSettings');
     const saveSettingsBtn = document.getElementById('saveSettings');
+    const resetAllDataBtn = document.getElementById('resetAllDataBtn');
 
     settingsBtn.addEventListener('click', () => {
         // Load current targets
@@ -2277,6 +2648,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('targetKcalDisplay').textContent = newTargets.kcal;
 
         settingsModal.classList.remove('active');
+    });
+
+    resetAllDataBtn.addEventListener('click', async () => {
+        const firstConfirm = confirm('Tüm uygulama verileri silinecek. Devam etmek istiyor musunuz?');
+        if (!firstConfirm) return;
+
+        const secondConfirm = confirm('Bu işlem geri alınamaz. Verileri sıfırla?');
+        if (!secondConfirm) return;
+
+        clearError();
+        showLoading();
+
+        try {
+            const cloudWarnings = await resetApplicationData();
+            settingsModal.classList.remove('active');
+
+            if (cloudWarnings.length > 0) {
+                showError(`Yerel veriler sifirlandi ancak bulutta eksik kalanlar var: ${cloudWarnings.join(' ')}`);
+            } else {
+                clearError();
+                alert('Tüm veriler sıfırlandı.');
+            }
+        } catch (error) {
+            console.error('Reset failed:', error);
+            showError('Veriler sıfırlanırken bir hata oluştu.');
+        } finally {
+            hideLoading();
+        }
     });
 
     // Close modal when clicking outside
@@ -2356,6 +2755,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     renderWeightSection();
+
+    // --- Logs Filter Event Listeners ---
+    if (logsDateFilterInput) {
+        logsDateFilterInput.addEventListener('change', (e) => {
+            logsDateFilter = e.target.value || '';
+            renderLogs();
+        });
+    }
+
+    const clearLogsDateFilterBtn = document.getElementById('clearLogsDateFilter');
+    if (clearLogsDateFilterBtn) {
+        clearLogsDateFilterBtn.addEventListener('click', () => {
+            logsDateFilter = '';
+            if (logsDateFilterInput) logsDateFilterInput.value = '';
+            renderLogs();
+        });
+    }
 
     // --- Catalog Event Listeners ---
     document.querySelectorAll('.catalog-filter-btn').forEach(btn => {

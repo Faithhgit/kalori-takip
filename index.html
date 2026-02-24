@@ -102,6 +102,12 @@
                     <label for="targetFat">Yağ Hedefi (g)</label>
                     <input type="number" id="targetFat" min="20" max="200" step="5" value="70">
                 </div>
+                <hr class="settings-divider">
+                <div class="settings-reset-box">
+                    <div class="settings-section-title">Veri Yonetimi</div>
+                    <p class="settings-reset-text">Tüm kayıtlar, kilo geçmişi, özel ürünler, şablonlar ve ayarlar silinir.</p>
+                    <button class="btn btn-danger-soft" id="resetAllDataBtn" type="button">Tüm Verileri Sıfırla</button>
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" id="cancelSettings">İptal</button>
@@ -240,6 +246,16 @@
                 <!-- Logs Tab -->
                 <div id="logs-tab" class="tab-content active">
                     <section class="logs-section">
+                        <div class="logs-toolbar">
+                            <div class="logs-filter-group">
+                                <div class="logs-filter-field">
+                                    <label for="logsDateFilter">Tarih Filtresi</label>
+                                    <input type="date" id="logsDateFilter" class="logs-date-input">
+                                </div>
+                                <button class="btn btn-secondary btn-sm logs-clear-btn" id="clearLogsDateFilter" type="button">Temizle</button>
+                            </div>
+                            <div class="logs-count" id="logsCount">0 kayıt</div>
+                        </div>
                         <div class="logs-container" id="logsContainer">
                             <div class="logs-loading">Yükleniyor...</div>
                         </div>
@@ -310,9 +326,16 @@
                             </div>
 
                             <!-- Amount Input -->
-                            <div class="form-group">
-                                <label for="gramsInput" id="amountLabel">Miktar (gram)</label>
-                                <input type="number" id="gramsInput" placeholder="100" min="1">
+                            <div class="add-meta-grid">
+                                <div class="form-group">
+                                    <label for="logDate">Kayıt Tarihi</label>
+                                    <input type="date" id="logDate" class="log-date-input">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="gramsInput" id="amountLabel">Miktar (gram)</label>
+                                    <input type="number" id="gramsInput" placeholder="100" min="1">
+                                </div>
                             </div>
 
                             <!-- Preview -->
