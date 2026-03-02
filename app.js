@@ -2306,10 +2306,10 @@ function setupMobileCollapsibles() {
 
     const collapsibleSections = [
         { key: 'motivation', selector: '.motivation-card', title: 'Motivasyon', defaultOpen: true },
-        { key: 'summary', selector: '.summary-card', title: 'Kalori Ozeti', defaultOpen: true },
-        { key: 'goals', selector: '.stats-card', title: 'Gunluk Hedefler', defaultOpen: false },
+        { key: 'summary', selector: '.summary-card', title: 'Kalori Özeti', defaultOpen: true },
+        { key: 'goals', selector: '.stats-card', title: 'Günlük Hedefler', defaultOpen: false },
         { key: 'weight', selector: '.weight-card', title: 'Kilo Takibi', defaultOpen: false },
-        { key: 'chart', selector: '.chart-section', title: 'Son 7 Gun', defaultOpen: false }
+        { key: 'chart', selector: '.chart-section', title: 'Son 7 Gün', defaultOpen: false }
     ];
 
     collapsibleSections.forEach(({ key, selector, title, defaultOpen }) => {
@@ -2384,6 +2384,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (logDateInput) logDateInput.value = today;
     const logsDateFilterInput = document.getElementById('logsDateFilter');
     if (logsDateFilterInput) logsDateFilterInput.value = '';
+    const logsDateFilterField = logsDateFilterInput?.closest('.logs-filter-field');
+    const syncLogsDateFilterPlaceholder = () => {
+        if (!logsDateFilterField || !logsDateFilterInput) return;
+        logsDateFilterField.classList.toggle('is-empty', !logsDateFilterInput.value);
+    };
+    syncLogsDateFilterPlaceholder();
 
     // Load data
     await loadCustomItems();
@@ -2793,8 +2799,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (logsDateFilterInput) {
         logsDateFilterInput.addEventListener('change', (e) => {
             logsDateFilter = e.target.value || '';
+            syncLogsDateFilterPlaceholder();
             renderLogs();
         });
+        logsDateFilterInput.addEventListener('input', syncLogsDateFilterPlaceholder);
     }
 
     const clearLogsDateFilterBtn = document.getElementById('clearLogsDateFilter');
@@ -2802,6 +2810,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         clearLogsDateFilterBtn.addEventListener('click', () => {
             logsDateFilter = '';
             if (logsDateFilterInput) logsDateFilterInput.value = '';
+            syncLogsDateFilterPlaceholder();
             renderLogs();
         });
     }

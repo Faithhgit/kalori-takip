@@ -695,6 +695,7 @@ h1, h2, h3 {
 
 .logs-filter-field {
     min-width: 146px;
+    position: relative;
 }
 
 .logs-filter-field label {
@@ -722,6 +723,25 @@ h1, h2, h3 {
     font-size: 0.76rem;
     border-width: 1px;
     border-radius: 10px;
+}
+
+.logs-filter-field.is-empty::after {
+    content: 'gg.aa.yyyy';
+    position: absolute;
+    left: 12px;
+    bottom: 8px;
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    pointer-events: none;
+    line-height: 1;
+}
+
+.logs-filter-field.is-empty:focus-within::after {
+    opacity: 0;
+}
+
+.logs-filter-field.is-empty input.logs-date-input[type="date"]::-webkit-datetime-edit {
+    color: transparent;
 }
 
 .log-date-input {
@@ -917,10 +937,19 @@ h1, h2, h3 {
     box-shadow: var(--shadow-md);
 }
 
+.add-section .form-group {
+    margin-bottom: 14px;
+}
+
+.add-section .form-group label {
+    font-size: 0.9rem;
+    margin-bottom: 7px;
+}
+
 .add-meta-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
+    gap: 10px;
 }
 
 .add-meta-grid .form-group {
@@ -951,6 +980,10 @@ h1, h2, h3 {
     grid-template-columns: repeat(3, 1fr);
 }
 
+.add-section .radio-group {
+    gap: 10px;
+}
+
 .radio-label {
     padding: 14px;
     background: var(--bg-secondary);
@@ -978,6 +1011,15 @@ h1, h2, h3 {
     display: none;
 }
 
+.add-section .radio-label {
+    min-height: 46px;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.94rem;
+}
+
 input[type="text"],
 input[type="number"],
 input[type="date"] {
@@ -990,6 +1032,14 @@ input[type="date"] {
     font-size: 1rem;
     font-weight: 500;
     transition: all 0.2s ease;
+}
+
+.add-section input[type="text"],
+.add-section input[type="number"],
+.add-section input[type="date"] {
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: 0.94rem;
 }
 
 input[type="text"]:focus,
@@ -1005,6 +1055,12 @@ input[type="date"] {
     min-width: 0;
     min-height: 52px;
     color-scheme: dark;
+}
+
+.add-meta-grid .log-date-input {
+    min-height: 42px;
+    padding: 8px 10px;
+    font-size: 0.88rem;
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator {
@@ -1207,6 +1263,12 @@ input::placeholder {
     font-weight: 700;
     cursor: pointer;
     transition: all 0.2s ease;
+}
+
+.add-section .btn-add {
+    min-height: 46px;
+    padding: 10px 12px;
+    font-size: 0.95rem;
 }
 
 .btn-add:hover {
@@ -1466,10 +1528,36 @@ input::placeholder {
         grid-template-columns: 1fr;
     }
 
-    .logs-toolbar,
-    .logs-filter-group {
+    .add-section .radio-group-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .add-section .radio-label {
+        min-height: 40px;
+        padding: 0 6px;
+        font-size: 0.86rem;
+    }
+
+    .add-section input[type="text"],
+    .add-section input[type="number"],
+    .add-section input[type="date"] {
+        min-height: 38px;
+        padding: 8px 10px;
+        font-size: 0.9rem;
+    }
+
+    .logs-toolbar {
         flex-direction: column;
         align-items: stretch;
+        gap: 6px;
+    }
+
+    .logs-filter-group {
+        flex-direction: row;
+        align-items: flex-end;
+        gap: 6px;
+        flex-wrap: wrap;
     }
 
     .logs-section-header {
@@ -1486,25 +1574,44 @@ input::placeholder {
         font-size: 1.32rem;
     }
 
-    .logs-filter-field,
-    .logs-date-input {
+    .logs-filter-field {
         min-width: 0;
-        width: 100%;
+        width: auto;
     }
 
     .logs-filter-field input.logs-date-input[type="date"] {
-        width: 100%;
-        min-width: 0;
+        width: 142px;
+        min-width: 142px;
         min-height: 32px;
-        font-size: 0.82rem;
+        padding: 6px 9px;
+        font-size: 0.8rem;
+    }
+
+    .logs-filter-field.is-empty::after {
+        left: 12px;
+        bottom: 9px;
+        font-size: 0.8rem;
     }
 
     .logs-count {
         margin-top: 2px;
+        align-self: flex-end;
     }
 
     .logs-container {
         max-height: 360px;
+    }
+
+    .add-meta-grid .log-date-input {
+        min-height: 38px;
+        padding: 6px 8px;
+        font-size: 0.88rem;
+    }
+
+    .add-section .btn-add {
+        min-height: 42px;
+        padding: 9px 10px;
+        font-size: 0.92rem;
     }
 
     .weight-input-row {
@@ -1702,7 +1809,7 @@ input::placeholder {
 }
 
 .weight-log-list {
-    max-height: 200px;
+    max-height: calc(6 * 40px);
     overflow-y: auto;
     margin-top: 12px;
 }
@@ -1712,6 +1819,7 @@ input::placeholder {
     justify-content: space-between;
     align-items: center;
     padding: 8px 12px;
+    min-height: 40px;
     border-bottom: 1px solid rgba(148, 163, 184, 0.05);
     font-size: 0.85rem;
 }
@@ -2488,6 +2596,11 @@ body::before {
     .templates-section {
         border-radius: 16px;
         padding: 16px;
+    }
+
+    .logs-filter-field input.logs-date-input[type="date"] {
+        width: 128px;
+        min-width: 128px;
     }
 }
 
