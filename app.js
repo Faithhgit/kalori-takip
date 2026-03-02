@@ -534,7 +534,9 @@ let selectedItem = null;
 let todayLogs = [];
 let recentLogs = [];
 let weekLogs = [];
-const LOG_HISTORY_DAYS = 14;
+const LOG_HISTORY_DAYS = 10;
+const LOG_RETENTION_DAYS = 45;
+const LOG_RETENTION_LAST_RUN_KEY = 'dailyLogsRetentionLastRun';
 let logsDateFilter = '';
 
 // Initialize Firebase
@@ -593,6 +595,33 @@ function getDateDaysAgo(daysAgo) {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+}
+
+async function pruneOldDailyLogsIfNeeded(force = false) {
+    if (!db) return;
+
+    const today = getToday();
+    if (!force && localStorage.getItem(LOG_RETENTION_LAST_RUN_KEY) === today) {
+        return;
+    }
+
+    const cutoffDate = getDateDaysAgo(LOG_RETENTION_DAYS);
+
+    try {
+        const oldLogsQuery = query(
+            collection(db, 'daily_logs'),
+            where('date', '<', cutoffDate)
+        );
+        const snap = await getDocs(oldLogsQuery);
+
+        for (const oldDoc of snap.docs) {
+            await deleteDoc(oldDoc.ref);
+        }
+
+        localStorage.setItem(LOG_RETENTION_LAST_RUN_KEY, today);
+    } catch (error) {
+        console.warn('Old daily logs prune failed:', error);
+    }
 }
 
 function isFuturePreviewEnabled() {
@@ -753,6 +782,8 @@ async function loadTodayLogs() {
 
 async function loadRecentLogs() {
     try {
+        await pruneOldDailyLogsIfNeeded();
+
         const startDate = getDateDaysAgo(LOG_HISTORY_DAYS - 1);
         const q = query(
             collection(db, 'daily_logs'),
@@ -2130,7 +2161,8 @@ function resetLocalData() {
         WEIGHT_LOG_KEY,
         RECENT_ITEMS_KEY,
         TEMPLATES_KEY,
-        LAUNCH_MOTIVATION_LAST_KEY
+        LAUNCH_MOTIVATION_LAST_KEY,
+        LOG_RETENTION_LAST_RUN_KEY
     ];
     keysToRemove.forEach((key) => localStorage.removeItem(key));
 
@@ -2358,6 +2390,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initializeTemplates();
     await loadSettingsFromCloud();
     await initializeWeightLog();
+    await pruneOldDailyLogsIfNeeded();
     await loadTodayLogs();
     await loadRecentLogs();
     await loadWeekLogs();

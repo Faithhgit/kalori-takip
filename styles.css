@@ -694,6 +694,8 @@ h1, h2, h3 {
 
 .log-date-input {
     font-variant-numeric: tabular-nums;
+    min-width: 0;
+    width: 100%;
 }
 
 .logs-clear-btn {
@@ -869,12 +871,13 @@ h1, h2, h3 {
 
 .add-meta-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
 }
 
 .add-meta-grid .form-group {
     margin-bottom: 0;
+    min-width: 0;
 }
 
 .form-group {
@@ -951,6 +954,7 @@ input[type="date"]:focus {
 }
 
 input[type="date"] {
+    min-width: 0;
     min-height: 52px;
     color-scheme: dark;
 }
@@ -1359,6 +1363,12 @@ input::placeholder {
     .main-content {
         grid-template-columns: 1fr;
         max-width: 600px;
+    }
+}
+
+@media (max-width: 900px) {
+    .add-meta-grid {
+        grid-template-columns: 1fr;
     }
 }
 

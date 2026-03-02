@@ -163,10 +163,10 @@ export const drinks = [
         carb_100: 8.5,
         fat_100: 0
     },
-    // Pınar Protein Süt - 100ml bazında: 49 kcal, 5.2g protein, 6.5g carb, 0.3g fat
+    // Proteinli Süt (kakaolu) - etiketten 100ml bazında
     {
         id: 'drink_021',
-        name: 'Protein Süt (250 ml)',
+        name: 'Protein Süt (Kakaolu, 250 ml)',
         kcal_100: 49,
         protein_100: 5.2,
         carb_100: 6.5,
@@ -174,7 +174,7 @@ export const drinks = [
     },
     {
         id: 'drink_022',
-        name: 'Protein Süt (500 ml)',
+        name: 'Protein Süt (Kakaolu, 500 ml)',
         kcal_100: 49,
         protein_100: 5.2,
         carb_100: 6.5,
@@ -206,7 +206,7 @@ export const drinks = [
     },
     {
         id: 'drink_026',
-        name: 'Latte (Yarim Yagli Sut)',
+        name: 'Latte (Yarım Yağlı Süt)',
         kcal_100: 44,
         protein_100: 2.9,
         carb_100: 4.3,
@@ -238,7 +238,7 @@ export const drinks = [
     },
     {
         id: 'drink_030',
-        name: 'Limonlu Su (Sekersiz)',
+        name: 'Limonlu Su (Şekersiz)',
         kcal_100: 3,
         protein_100: 0,
         carb_100: 0.8,
@@ -254,7 +254,7 @@ export const drinks = [
     },
     {
         id: 'drink_032',
-        name: 'Kefir (Icilen)',
+        name: 'Kefir (İçilen)',
         kcal_100: 58,
         protein_100: 3.2,
         carb_100: 4.5,
@@ -262,7 +262,7 @@ export const drinks = [
     },
     {
         id: 'drink_033',
-        name: 'Protein Icecegi (Sekersiz)',
+        name: 'Protein İçeceği (Şekersiz)',
         kcal_100: 52,
         protein_100: 8,
         carb_100: 3,
@@ -294,7 +294,7 @@ export const drinks = [
     },
     {
         id: 'drink_037',
-        name: 'Latte (Tam Yagli Sut)',
+        name: 'Latte (Tam Yağlı Süt)',
         kcal_100: 58,
         protein_100: 3.1,
         carb_100: 4.7,
@@ -334,7 +334,7 @@ export const drinks = [
     },
     {
         id: 'drink_042',
-        name: 'Seftali Ice Tea',
+        name: 'Şeftali Ice Tea',
         kcal_100: 30,
         protein_100: 0,
         carb_100: 7.2,
@@ -358,7 +358,7 @@ export const drinks = [
     },
     {
         id: 'drink_045',
-        name: 'Visne Suyu',
+        name: 'Vişne Suyu',
         kcal_100: 47,
         protein_100: 0.3,
         carb_100: 11.5,
@@ -366,7 +366,7 @@ export const drinks = [
     },
     {
         id: 'drink_046',
-        name: 'Limonlu Soda (Sekerli)',
+        name: 'Limonlu Soda (Şekerli)',
         kcal_100: 24,
         protein_100: 0,
         carb_100: 6,
@@ -390,7 +390,7 @@ export const drinks = [
     },
     {
         id: 'drink_049',
-        name: 'Soguk Kakao',
+        name: 'Soğuk Kakao',
         kcal_100: 66,
         protein_100: 2.9,
         carb_100: 9.2,
@@ -398,7 +398,7 @@ export const drinks = [
     },
     {
         id: 'drink_050',
-        name: 'Soya Sutu',
+        name: 'Soya Sütü',
         kcal_100: 45,
         protein_100: 3.3,
         carb_100: 2.5,
@@ -406,7 +406,7 @@ export const drinks = [
     },
     {
         id: 'drink_051',
-        name: 'Yulaf Sutu',
+        name: 'Yulaf Sütü',
         kcal_100: 46,
         protein_100: 1,
         carb_100: 6.7,
@@ -414,7 +414,7 @@ export const drinks = [
     },
     {
         id: 'drink_052',
-        name: 'Hindistan Cevizi Sutu (Icecek)',
+        name: 'Hindistan Cevizi Sütü (İçecek)',
         kcal_100: 20,
         protein_100: 0.2,
         carb_100: 1.9,
@@ -427,6 +427,22 @@ export const drinks = [
         protein_100: 3.1,
         carb_100: 12,
         fat_100: 1.6
+    },
+    {
+        id: 'drink_054',
+        name: 'Protein Pro+ Süt (Vanilyalı, 500 ml)',
+        kcal_100: 66,
+        protein_100: 10.4,
+        carb_100: 5.5,
+        fat_100: 0.3
+    },
+    {
+        id: 'drink_055',
+        name: 'Protein Pro+ Süt (Vanilyalı, 250 ml)',
+        kcal_100: 66,
+        protein_100: 10.4,
+        carb_100: 5.5,
+        fat_100: 0.3
     }
 ];
 

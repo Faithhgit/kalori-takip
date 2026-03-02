@@ -243,14 +243,14 @@ export const foods = [
         carb_100: 12,
         fat_100: 0.1
     },
-    // Whey protein - 1 ölçek 25g servis, değerler 100g bazında
+    // Whey protein - güncel etiket verisi (100g bazında)
     {
         id: 'food_031',
         name: 'Whey Protein (1 ölçek = 25g)',
-        kcal_100: 368,
-        protein_100: 86.8,
-        carb_100: 2.4,
-        fat_100: 0.8
+        kcal_100: 388,
+        protein_100: 74.2,
+        carb_100: 9.7,
+        fat_100: 5.8
     },
     {
         id: 'food_032',
@@ -270,7 +270,7 @@ export const foods = [
     },
     {
         id: 'food_034',
-        name: 'Hindi Gogsu (Izgara)',
+        name: 'Hindi Göğsü (Izgara)',
         kcal_100: 135,
         protein_100: 29,
         carb_100: 0,
@@ -278,7 +278,7 @@ export const foods = [
     },
     {
         id: 'food_035',
-        name: 'Nohut (Pismis)',
+        name: 'Nohut (Pişmiş)',
         kcal_100: 164,
         protein_100: 8.9,
         carb_100: 27,
@@ -286,7 +286,7 @@ export const foods = [
     },
     {
         id: 'food_036',
-        name: 'Beyaz Pirinc (Pismis)',
+        name: 'Beyaz Pirinç (Pişmiş)',
         kcal_100: 129,
         protein_100: 2.4,
         carb_100: 28.7,
@@ -294,7 +294,7 @@ export const foods = [
     },
     {
         id: 'food_037',
-        name: 'Esmer Pirinc (Pismis)',
+        name: 'Esmer Pirinç (Pişmiş)',
         kcal_100: 123,
         protein_100: 2.7,
         carb_100: 25.6,
@@ -302,7 +302,7 @@ export const foods = [
     },
     {
         id: 'food_038',
-        name: 'Tatli Patates (Firinda)',
+        name: 'Tatlı Patates (Fırında)',
         kcal_100: 90,
         protein_100: 2,
         carb_100: 21,
@@ -326,7 +326,7 @@ export const foods = [
     },
     {
         id: 'food_041',
-        name: 'Yagisiz Kiyma (Pismis)',
+        name: 'Yağsız Kıyma (Pişmiş)',
         kcal_100: 217,
         protein_100: 26,
         carb_100: 0,
@@ -414,7 +414,7 @@ export const foods = [
     },
     {
         id: 'food_052',
-        name: 'Mercimek Corbasi',
+        name: 'Mercimek Çorbası',
         kcal_100: 64,
         protein_100: 3.2,
         carb_100: 9.6,
@@ -422,7 +422,7 @@ export const foods = [
     },
     {
         id: 'food_053',
-        name: 'Ezogelin Corbasi',
+        name: 'Ezogelin Çorbası',
         kcal_100: 66,
         protein_100: 2.2,
         carb_100: 11,
@@ -446,7 +446,7 @@ export const foods = [
     },
     {
         id: 'food_056',
-        name: 'Patates Kizartmasi',
+        name: 'Patates Kızartması',
         kcal_100: 312,
         protein_100: 3.4,
         carb_100: 41,
@@ -454,7 +454,7 @@ export const foods = [
     },
     {
         id: 'food_057',
-        name: 'Beyaz Pilav (Yagli)',
+        name: 'Beyaz Pilav (Yağlı)',
         kcal_100: 170,
         protein_100: 2.6,
         carb_100: 32,
@@ -462,7 +462,7 @@ export const foods = [
     },
     {
         id: 'food_058',
-        name: 'Kuru Fasulye (Pismis)',
+        name: 'Kuru Fasulye (Pişmiş)',
         kcal_100: 127,
         protein_100: 8.7,
         carb_100: 22.8,
@@ -486,7 +486,7 @@ export const foods = [
     },
     {
         id: 'food_061',
-        name: 'Et Doner',
+        name: 'Et Döner',
         kcal_100: 215,
         protein_100: 19,
         carb_100: 5,
@@ -494,7 +494,7 @@ export const foods = [
     },
     {
         id: 'food_062',
-        name: 'Tavuk Doner',
+        name: 'Tavuk Döner',
         kcal_100: 189,
         protein_100: 20,
         carb_100: 4,
@@ -502,7 +502,7 @@ export const foods = [
     },
     {
         id: 'food_063',
-        name: 'Sigara Boregi',
+        name: 'Sigara Böreği',
         kcal_100: 294,
         protein_100: 8.5,
         carb_100: 30,
@@ -515,6 +515,262 @@ export const foods = [
         protein_100: 0,
         carb_100: 0,
         fat_100: 0
+    },
+    {
+        id: 'food_065',
+        name: 'Smoothie Paket (25g Whey + 250ml Protein Pro+ Süt + 1 Muz)',
+        kcal_100: 93.4,
+        protein_100: 11.6,
+        carb_100: 11.1,
+        fat_100: 0.6
+    },
+    {
+        id: 'food_066',
+        name: 'Smoothie Paket (25g Whey + Su + 1 Muz)',
+        kcal_100: 51.6,
+        protein_100: 5,
+        carb_100: 7.6,
+        fat_100: 0.5
+    },
+    {
+        id: 'food_067',
+        name: 'Smoothie Paket Yulaflı (25g Whey + 250ml Protein Pro+ Süt + 1 Muz + 40g Yulaf)',
+        kcal_100: 120.6,
+        protein_100: 12.1,
+        carb_100: 16.1,
+        fat_100: 1.2
+    },
+    {
+        id: 'food_068',
+        name: 'Smoothie Paket Çilekli (25g Whey + 250ml Protein Pro+ Süt + 150g Çilek)',
+        kcal_100: 72.9,
+        protein_100: 10.7,
+        carb_100: 6.6,
+        fat_100: 0.6
+    },
+    {
+        id: 'food_069',
+        name: 'Smoothie Paket Çilekli (25g Whey + Su + 150g Çilek)',
+        kcal_100: 34.1,
+        protein_100: 4.6,
+        carb_100: 3.4,
+        fat_100: 0.4
+    },
+    {
+        id: 'food_070',
+        name: 'Smoothie Paket Yulaf-Çilek (25g Whey + 250ml Protein Pro+ Süt + 150g Çilek + 40g Yulaf)',
+        kcal_100: 100.1,
+        protein_100: 11.3,
+        carb_100: 11.7,
+        fat_100: 1.2
+    },
+    {
+        id: 'food_071',
+        name: 'Tavuk Göğsü (Izgara)',
+        kcal_100: 170,
+        protein_100: 31.5,
+        carb_100: 0,
+        fat_100: 4.2
+    },
+    {
+        id: 'food_072',
+        name: 'Tavuk Göğsü (Fırında)',
+        kcal_100: 173,
+        protein_100: 31,
+        carb_100: 0,
+        fat_100: 4.8
+    },
+    {
+        id: 'food_073',
+        name: 'Tavuk But (Haşlanmış, Derisiz)',
+        kcal_100: 179,
+        protein_100: 24.8,
+        carb_100: 0,
+        fat_100: 8.2
+    },
+    {
+        id: 'food_074',
+        name: 'Tavuk But (Fırında, Derili)',
+        kcal_100: 232,
+        protein_100: 26,
+        carb_100: 0,
+        fat_100: 14.7
+    },
+    {
+        id: 'food_075',
+        name: 'Tavuk Pirzola (Izgara, Derili)',
+        kcal_100: 229,
+        protein_100: 25.5,
+        carb_100: 0,
+        fat_100: 14.2
+    },
+    {
+        id: 'food_076',
+        name: 'Tavuk Pirzola (Fırında, Derili)',
+        kcal_100: 225,
+        protein_100: 25,
+        carb_100: 0,
+        fat_100: 13.8
+    },
+    {
+        id: 'food_077',
+        name: 'Tavuk Baget (Izgara, Derili)',
+        kcal_100: 191,
+        protein_100: 27.3,
+        carb_100: 0,
+        fat_100: 8.1
+    },
+    {
+        id: 'food_078',
+        name: 'Tavuk Kanat (Izgara, Derili)',
+        kcal_100: 254,
+        protein_100: 23.8,
+        carb_100: 0,
+        fat_100: 16.9
+    },
+    {
+        id: 'food_079',
+        name: 'Tavuk Pilav (Paket, 1 Porsiyon = 360g)',
+        kcal_100: 166,
+        protein_100: 14.4,
+        carb_100: 15.6,
+        fat_100: 4.4
+    },
+    {
+        id: 'food_080',
+        name: 'Tavuk Pilav (Paket, Büyük, 1 Porsiyon = 442g)',
+        kcal_100: 166.7,
+        protein_100: 15.4,
+        carb_100: 14.6,
+        fat_100: 4.5
+    },
+    {
+        id: 'food_081',
+        name: 'Tavuk Döner Dürüm (100g Tavuk + Lavaş + Patates + Mayonez + Sos + Marul + Domates, 1 Adet = 280g)',
+        kcal_100: 232.0,
+        protein_100: 10.2,
+        carb_100: 21.6,
+        fat_100: 10.5
+    },
+    {
+        id: 'food_082',
+        name: 'Tavuk Döner Dürüm (120g Tavuk + Lavaş + Patates + Mayonez + Sos + Marul + Domates, 1 Adet = 300g)',
+        kcal_100: 236.5,
+        protein_100: 11.0,
+        carb_100: 20.1,
+        fat_100: 10.9
+    },
+    {
+        id: 'food_083',
+        name: 'Tavuk Döner Dürüm (150g Tavuk + Lavaş + Patates + Mayonez + Sos + Marul + Domates, 1 Adet = 330g)',
+        kcal_100: 244.0,
+        protein_100: 12.0,
+        carb_100: 18.4,
+        fat_100: 11.5
+    },
+    {
+        id: 'food_084',
+        name: 'Tavuk Döner Ekmek Arası (100g Tavuk + Ekmek + Patates + Mayonez + Sos + Marul + Domates, 1 Adet = 300g)',
+        kcal_100: 224.0,
+        protein_100: 10.1,
+        carb_100: 22.7,
+        fat_100: 9.5
+    },
+    {
+        id: 'food_085',
+        name: 'Tavuk Döner Ekmek Arası (120g Tavuk + Ekmek + Patates + Mayonez + Sos + Marul + Domates, 1 Adet = 320g)',
+        kcal_100: 229.0,
+        protein_100: 11.1,
+        carb_100: 21.1,
+        fat_100: 9.8
+    },
+    {
+        id: 'food_086',
+        name: 'Tavuk Döner Ekmek Arası (150g Tavuk + Ekmek + Patates + Mayonez + Sos + Marul + Domates, 1 Adet = 350g)',
+        kcal_100: 236.0,
+        protein_100: 12.0,
+        carb_100: 19.6,
+        fat_100: 10.2
+    },
+    {
+        id: 'food_087',
+        name: 'Hazır Noodle (Paket, Pişirilmiş)',
+        kcal_100: 138,
+        protein_100: 4.5,
+        carb_100: 20.5,
+        fat_100: 4.8
+    },
+    {
+        id: 'food_088',
+        name: 'Dondurulmuş Pizza (Karışık, Pişirilmiş)',
+        kcal_100: 255,
+        protein_100: 11.2,
+        carb_100: 30.4,
+        fat_100: 9.8
+    },
+    {
+        id: 'food_089',
+        name: 'Hamburger (Hazır, Tekli)',
+        kcal_100: 252,
+        protein_100: 11.5,
+        carb_100: 28.5,
+        fat_100: 10.2
+    },
+    {
+        id: 'food_090',
+        name: 'Çizburger (Hazır, Tekli)',
+        kcal_100: 289,
+        protein_100: 13.4,
+        carb_100: 27.8,
+        fat_100: 14.5
+    },
+    {
+        id: 'food_091',
+        name: 'Tavuk Nugget (Hazır, Fırında)',
+        kcal_100: 248,
+        protein_100: 14.2,
+        carb_100: 18.5,
+        fat_100: 13.2
+    },
+    {
+        id: 'food_092',
+        name: 'Patates Kroket (Hazır, Fırında)',
+        kcal_100: 201,
+        protein_100: 3.8,
+        carb_100: 27.2,
+        fat_100: 8.7
+    },
+    {
+        id: 'food_093',
+        name: 'Sandviç (Hazır, Hindi-Füme Peynir)',
+        kcal_100: 236,
+        protein_100: 12.5,
+        carb_100: 26.4,
+        fat_100: 8.6
+    },
+    {
+        id: 'food_094',
+        name: 'Protein Bar (Hazır)',
+        kcal_100: 362,
+        protein_100: 33,
+        carb_100: 32,
+        fat_100: 12
+    },
+    {
+        id: 'food_095',
+        name: 'Smoothie Paket (25g Whey + 250ml Protein Süt Kakaolu + 1 Muz)',
+        kcal_100: 82.6,
+        protein_100: 8.3,
+        carb_100: 11.7,
+        fat_100: 0.6
+    },
+    {
+        id: 'food_096',
+        name: 'Smoothie Paket Çilekli (25g Whey + 250ml Protein Süt Kakaolu + 150g Çilek)',
+        kcal_100: 62.9,
+        protein_100: 7.7,
+        carb_100: 7.2,
+        fat_100: 0.6
     }
 ];
 
