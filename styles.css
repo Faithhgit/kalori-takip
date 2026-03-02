@@ -653,43 +653,75 @@ h1, h2, h3 {
 .logs-section {
     background: var(--bg-card);
     border-radius: var(--radius-lg);
-    padding: 24px;
+    padding: 18px;
     box-shadow: var(--shadow-md);
+}
+
+.logs-section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(173, 189, 216, 0.14);
+}
+
+.logs-section-header h2 {
+    margin: 0;
+    font-size: 1.26rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.3px;
+}
+
+.logs-section-header .stats-icon {
+    font-size: 1.6rem;
+    filter: drop-shadow(0 2px 4px rgba(59, 130, 246, 0.24));
 }
 
 .logs-toolbar {
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 16px;
+    gap: 6px;
+    margin-bottom: 10px;
 }
 
 .logs-filter-group {
     display: flex;
     align-items: flex-end;
-    gap: 10px;
+    gap: 6px;
 }
 
 .logs-filter-field {
-    min-width: 190px;
+    min-width: 146px;
 }
 
 .logs-filter-field label {
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
     color: var(--text-secondary);
-    font-size: 0.8rem;
+    font-size: 0.68rem;
     font-weight: 700;
-    letter-spacing: 0.4px;
+    letter-spacing: 0.2px;
     text-transform: uppercase;
 }
 
 .logs-date-input {
-    min-width: 190px;
-    min-height: 44px;
-    padding: 10px 12px;
-    font-size: 0.92rem;
+    min-width: 146px;
+    min-height: 34px;
+    padding: 6px 8px;
+    font-size: 0.8rem;
+}
+
+.logs-filter-field input.logs-date-input[type="date"] {
+    width: 132px;
+    min-width: 132px;
+    min-height: 30px;
+    padding: 4px 8px;
+    font-size: 0.76rem;
+    border-width: 1px;
+    border-radius: 10px;
 }
 
 .log-date-input {
@@ -700,7 +732,10 @@ h1, h2, h3 {
 
 .logs-clear-btn {
     display: none;
-    margin-bottom: 1px;
+    margin-bottom: 0;
+    min-height: 34px;
+    padding: 6px 10px;
+    font-size: 0.75rem;
 }
 
 .logs-clear-btn.is-visible {
@@ -709,34 +744,37 @@ h1, h2, h3 {
 
 .logs-count {
     color: var(--text-muted);
-    font-size: 0.82rem;
+    font-size: 0.7rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.6px;
+    letter-spacing: 0.4px;
 }
 
 .logs-container {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 6px;
+    max-height: 460px;
+    overflow-y: auto;
+    padding-right: 4px;
 }
 
 .log-item {
     background: var(--bg-secondary);
-    padding: 16px 20px;
+    padding: 9px 10px;
     border-radius: var(--radius-md);
     display: flex;
     justify-content: space-between;
     align-items: center;
     transition: all 0.2s ease;
     cursor: pointer;
-    border: 2px solid transparent;
+    border: 1px solid transparent;
 }
 
 .log-item:hover {
     background: var(--bg-card-hover);
     border-color: var(--accent-secondary);
-    transform: translateX(4px);
+    transform: translateX(2px);
 }
 
 .log-time {
@@ -748,21 +786,21 @@ h1, h2, h3 {
 
 .log-info {
     flex: 1;
-    margin: 0 16px;
+    margin: 0 8px;
 }
 
 .log-name {
     font-weight: 600;
-    font-size: 1rem;
+    font-size: 0.92rem;
     color: var(--text-primary);
-    margin-bottom: 4px;
+    margin-bottom: 3px;
 }
 
 .log-details {
-    font-size: 0.85rem;
+    font-size: 0.78rem;
     color: var(--text-secondary);
     display: flex;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: wrap;
     align-items: center;
 }
@@ -778,7 +816,7 @@ h1, h2, h3 {
 
 .log-actions {
     display: flex;
-    gap: 8px;
+    gap: 4px;
 }
 
 .log-edit,
@@ -787,10 +825,10 @@ h1, h2, h3 {
     border: none;
     color: var(--text-muted);
     cursor: pointer;
-    padding: 8px;
+    padding: 6px;
     border-radius: 8px;
     transition: all 0.2s ease;
-    font-size: 1.1rem;
+    font-size: 1rem;
 }
 
 .log-edit:hover {
@@ -806,8 +844,18 @@ h1, h2, h3 {
 .no-logs {
     text-align: center;
     color: var(--text-secondary);
-    padding: 48px 20px;
-    font-size: 1rem;
+    padding: 28px 14px;
+    font-size: 0.92rem;
+}
+
+.logs-section .macro-badge {
+    padding: 3px 8px;
+    font-size: 0.7rem;
+    border-radius: 7px;
+}
+
+.logs-section .log-item {
+    border-radius: 10px;
 }
 
 /* Tabs */
@@ -1424,14 +1472,39 @@ input::placeholder {
         align-items: stretch;
     }
 
+    .logs-section-header {
+        gap: 8px;
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+    }
+
+    .logs-section-header h2 {
+        font-size: 1.12rem;
+    }
+
+    .logs-section-header .stats-icon {
+        font-size: 1.32rem;
+    }
+
     .logs-filter-field,
     .logs-date-input {
         min-width: 0;
         width: 100%;
     }
 
+    .logs-filter-field input.logs-date-input[type="date"] {
+        width: 100%;
+        min-width: 0;
+        min-height: 32px;
+        font-size: 0.82rem;
+    }
+
     .logs-count {
         margin-top: 2px;
+    }
+
+    .logs-container {
+        max-height: 360px;
     }
 
     .weight-input-row {
