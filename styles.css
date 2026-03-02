@@ -1782,6 +1782,9 @@ input::placeholder {
 
 .weight-input-row input[type="date"] {
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    display: block;
     padding: 10px 12px;
     background: var(--bg-secondary);
     border: 2px solid var(--bg-card-hover);
@@ -1789,6 +1792,13 @@ input::placeholder {
     color: var(--text-primary);
     font-size: 0.9rem;
     font-weight: 500;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.weight-input-row input[type="date"]::-webkit-date-and-time-value,
+.weight-input-row input[type="date"]::-webkit-datetime-edit {
+    text-align: left;
 }
 
 .weight-input-row input[type="date"]::-webkit-calendar-picker-indicator {
@@ -2629,6 +2639,14 @@ body::before {
 
     .add-meta-grid {
         grid-template-columns: 1fr;
+    }
+
+    .weight-input-row {
+        grid-template-columns: 1fr;
+    }
+
+    .weight-input-row .btn-sm {
+        grid-column: auto;
     }
 }
 
