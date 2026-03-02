@@ -1066,6 +1066,15 @@ input[type="date"] {
     min-height: 42px;
     padding: 8px 10px;
     font-size: 0.88rem;
+    display: block;
+    min-width: 0;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.add-meta-grid .log-date-input::-webkit-date-and-time-value,
+.add-meta-grid .log-date-input::-webkit-datetime-edit {
+    text-align: left;
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator {
@@ -1484,7 +1493,7 @@ input::placeholder {
 
 @media (max-width: 900px) {
     .add-meta-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
@@ -1529,8 +1538,7 @@ input::placeholder {
     }
 
     .custom-macros-grid,
-    .preview-grid,
-    .add-meta-grid {
+    .preview-grid {
         grid-template-columns: 1fr;
     }
 
@@ -1620,6 +1628,8 @@ input::placeholder {
         min-height: 38px;
         padding: 6px 8px;
         font-size: 0.88rem;
+        -webkit-appearance: none;
+        appearance: none;
     }
 
     .add-section .btn-add {
@@ -2615,6 +2625,10 @@ body::before {
     .logs-filter-field input.logs-date-input[type="date"] {
         width: 128px;
         min-width: 128px;
+    }
+
+    .add-meta-grid {
+        grid-template-columns: 1fr;
     }
 }
 
