@@ -603,6 +603,206 @@ export const drinks = [
         protein_100: 2.9,
         carb_100: 12.4,
         fat_100: 1.3
+    },
+    {
+        id: 'drink_076',
+        name: 'Su',
+        kcal_100: 0,
+        protein_100: 0,
+        carb_100: 0,
+        fat_100: 0
+    },
+    {
+        id: 'drink_077',
+        name: 'Maden Suyu',
+        kcal_100: 0,
+        protein_100: 0,
+        carb_100: 0,
+        fat_100: 0
+    },
+    {
+        id: 'drink_078',
+        name: 'Şekersiz Limonata',
+        kcal_100: 8,
+        protein_100: 0,
+        carb_100: 1.9,
+        fat_100: 0
+    },
+    {
+        id: 'drink_079',
+        name: 'Limonata (Şekerli)',
+        kcal_100: 39,
+        protein_100: 0.1,
+        carb_100: 9.8,
+        fat_100: 0
+    },
+    {
+        id: 'drink_080',
+        name: 'Ev Yapımı Ayran',
+        kcal_100: 34,
+        protein_100: 1.9,
+        carb_100: 2.5,
+        fat_100: 1.8
+    },
+    {
+        id: 'drink_081',
+        name: 'Türk Kahvesi (Şekersiz)',
+        kcal_100: 2,
+        protein_100: 0.2,
+        carb_100: 0.3,
+        fat_100: 0
+    },
+    {
+        id: 'drink_082',
+        name: 'Türk Kahvesi (Orta Şekerli)',
+        kcal_100: 27,
+        protein_100: 0.2,
+        carb_100: 6.5,
+        fat_100: 0
+    },
+    {
+        id: 'drink_083',
+        name: 'Filtre Kahve (Şekersiz)',
+        kcal_100: 1,
+        protein_100: 0.1,
+        carb_100: 0,
+        fat_100: 0
+    },
+    {
+        id: 'drink_084',
+        name: 'Latte (Yarım Yağlı Süt)',
+        kcal_100: 48,
+        protein_100: 2.8,
+        carb_100: 4.7,
+        fat_100: 2
+    },
+    {
+        id: 'drink_085',
+        name: 'Cappuccino',
+        kcal_100: 41,
+        protein_100: 2.4,
+        carb_100: 4.1,
+        fat_100: 1.6
+    },
+    {
+        id: 'drink_086',
+        name: 'Mocha',
+        kcal_100: 73,
+        protein_100: 2.7,
+        carb_100: 10.2,
+        fat_100: 2.5
+    },
+    {
+        id: 'drink_087',
+        name: 'Sıcak Çikolata',
+        kcal_100: 81,
+        protein_100: 3,
+        carb_100: 11.2,
+        fat_100: 2.8
+    },
+    {
+        id: 'drink_088',
+        name: 'Bitki Çayı (Şekersiz)',
+        kcal_100: 1,
+        protein_100: 0,
+        carb_100: 0.2,
+        fat_100: 0
+    },
+    {
+        id: 'drink_089',
+        name: 'Yeşil Çay (Şekersiz)',
+        kcal_100: 0,
+        protein_100: 0,
+        carb_100: 0,
+        fat_100: 0
+    },
+    {
+        id: 'drink_090',
+        name: 'Ice Americano',
+        kcal_100: 2,
+        protein_100: 0.3,
+        carb_100: 0.2,
+        fat_100: 0
+    },
+    {
+        id: 'drink_091',
+        name: 'Buzlu Latte',
+        kcal_100: 53,
+        protein_100: 2.9,
+        carb_100: 5.2,
+        fat_100: 2.2
+    },
+    {
+        id: 'drink_092',
+        name: 'Buzlu Mocha',
+        kcal_100: 79,
+        protein_100: 2.9,
+        carb_100: 11.4,
+        fat_100: 2.7
+    },
+    {
+        id: 'drink_093',
+        name: 'Ayran (200 ml Şişe)',
+        kcal_100: 37,
+        protein_100: 2,
+        carb_100: 2.9,
+        fat_100: 2
+    },
+    {
+        id: 'drink_094',
+        name: 'Kefir (Meyveli)',
+        kcal_100: 77,
+        protein_100: 3,
+        carb_100: 11.8,
+        fat_100: 2
+    },
+    {
+        id: 'drink_095',
+        name: 'Probiyotik Yoğurt İçeceği',
+        kcal_100: 64,
+        protein_100: 2.7,
+        carb_100: 9.4,
+        fat_100: 1.8
+    },
+    {
+        id: 'drink_096',
+        name: 'Sütlü Muzlu Smoothie',
+        kcal_100: 86,
+        protein_100: 3.1,
+        carb_100: 14.7,
+        fat_100: 1.7
+    },
+    {
+        id: 'drink_097',
+        name: 'Yulaflı Protein Shake',
+        kcal_100: 92,
+        protein_100: 6.8,
+        carb_100: 10.2,
+        fat_100: 2.4
+    },
+    {
+        id: 'drink_098',
+        name: 'Pınar Protein Pro+ Vanilyalı',
+        kcal_100: 66,
+        protein_100: 10.4,
+        carb_100: 5.5,
+        fat_100: 0.3
+    },
+    {
+        id: 'drink_099',
+        name: 'Pınar Proteinli Süt Kakaolu',
+        kcal_100: 49,
+        protein_100: 5.2,
+        carb_100: 3.5,
+        fat_100: 1.5
+    },
+    {
+        id: 'drink_100',
+        name: 'Whey Protein Shake (Su ile)',
+        kcal_100: 43,
+        protein_100: 8.2,
+        carb_100: 1.1,
+        fat_100: 0.6
     }
 ];
 

@@ -1171,6 +1171,438 @@ export const foods = [
         protein_100: 13.8,
         carb_100: 24.4,
         fat_100: 7.6
+    },
+    {
+        id: 'food_147',
+        name: 'Patates Kızartması',
+        kcal_100: 312,
+        protein_100: 3.4,
+        carb_100: 41.1,
+        fat_100: 15.2
+    },
+    {
+        id: 'food_148',
+        name: 'Fırın Patates',
+        kcal_100: 146,
+        protein_100: 2.7,
+        carb_100: 27.8,
+        fat_100: 2.5
+    },
+    {
+        id: 'food_149',
+        name: 'Patates Püresi',
+        kcal_100: 113,
+        protein_100: 2.1,
+        carb_100: 17.6,
+        fat_100: 3.9
+    },
+    {
+        id: 'food_150',
+        name: 'Sebzeli Bulgur Pilavı',
+        kcal_100: 128,
+        protein_100: 3.6,
+        carb_100: 23.9,
+        fat_100: 2.1
+    },
+    {
+        id: 'food_151',
+        name: 'Etli Nohut Yemeği',
+        kcal_100: 168,
+        protein_100: 10.3,
+        carb_100: 17.2,
+        fat_100: 6.4
+    },
+    {
+        id: 'food_152',
+        name: 'Zeytinyağlı Taze Fasulye',
+        kcal_100: 92,
+        protein_100: 1.8,
+        carb_100: 8.7,
+        fat_100: 5.3
+    },
+    {
+        id: 'food_153',
+        name: 'Kuru Fasulye (Etli)',
+        kcal_100: 171,
+        protein_100: 11.2,
+        carb_100: 18.4,
+        fat_100: 5.7
+    },
+    {
+        id: 'food_154',
+        name: 'Kuru Fasulye (Etsiz)',
+        kcal_100: 142,
+        protein_100: 8.6,
+        carb_100: 22.7,
+        fat_100: 2.2
+    },
+    {
+        id: 'food_155',
+        name: 'Mercimek Köftesi',
+        kcal_100: 184,
+        protein_100: 6.4,
+        carb_100: 27.5,
+        fat_100: 5.6
+    },
+    {
+        id: 'food_156',
+        name: 'Ispanak Yemeği (Yoğurtlu)',
+        kcal_100: 101,
+        protein_100: 4.2,
+        carb_100: 7.8,
+        fat_100: 5.4
+    },
+    {
+        id: 'food_157',
+        name: 'Karnabahar Graten',
+        kcal_100: 126,
+        protein_100: 5.7,
+        carb_100: 8.9,
+        fat_100: 7.2
+    },
+    {
+        id: 'food_158',
+        name: 'Kabak Mücveri (Fırın)',
+        kcal_100: 118,
+        protein_100: 4.6,
+        carb_100: 9.7,
+        fat_100: 6.3
+    },
+    {
+        id: 'food_159',
+        name: 'Mantı (Yoğurtlu)',
+        kcal_100: 224,
+        protein_100: 9.1,
+        carb_100: 27.8,
+        fat_100: 8.2
+    },
+    {
+        id: 'food_160',
+        name: 'Etli Yaprak Sarma',
+        kcal_100: 167,
+        protein_100: 6.2,
+        carb_100: 18.6,
+        fat_100: 7.1
+    },
+    {
+        id: 'food_161',
+        name: 'Zeytinyağlı Yaprak Sarma',
+        kcal_100: 176,
+        protein_100: 3.4,
+        carb_100: 24.2,
+        fat_100: 7.8
+    },
+    {
+        id: 'food_162',
+        name: 'Sebzeli Omlet',
+        kcal_100: 139,
+        protein_100: 8.9,
+        carb_100: 3.9,
+        fat_100: 9.6
+    },
+    {
+        id: 'food_163',
+        name: 'Menemen',
+        kcal_100: 104,
+        protein_100: 5.7,
+        carb_100: 4.5,
+        fat_100: 7.1
+    },
+    {
+        id: 'food_164',
+        name: 'Peynirli Omlet',
+        kcal_100: 174,
+        protein_100: 11.8,
+        carb_100: 2.3,
+        fat_100: 12.8
+    },
+    {
+        id: 'food_165',
+        name: 'Kaşarlı Tost',
+        kcal_100: 286,
+        protein_100: 13.7,
+        carb_100: 30.9,
+        fat_100: 12.1
+    },
+    {
+        id: 'food_166',
+        name: 'Karışık Tost',
+        kcal_100: 298,
+        protein_100: 14.6,
+        carb_100: 31.8,
+        fat_100: 12.9
+    },
+    {
+        id: 'food_167',
+        name: 'Sucuklu Yumurta',
+        kcal_100: 234,
+        protein_100: 12.4,
+        carb_100: 1.7,
+        fat_100: 18.9
+    },
+    {
+        id: 'food_168',
+        name: 'Hindi Füme Sandviç',
+        kcal_100: 231,
+        protein_100: 15.2,
+        carb_100: 24.6,
+        fat_100: 8.1
+    },
+    {
+        id: 'food_169',
+        name: 'Peynirli Sandviç',
+        kcal_100: 247,
+        protein_100: 10.8,
+        carb_100: 28.1,
+        fat_100: 9.6
+    },
+    {
+        id: 'food_170',
+        name: 'Tavuklu Sandviç',
+        kcal_100: 238,
+        protein_100: 14.9,
+        carb_100: 27.2,
+        fat_100: 7.4
+    },
+    {
+        id: 'food_171',
+        name: 'Et Döner Porsiyon',
+        kcal_100: 236,
+        protein_100: 16.8,
+        carb_100: 6.1,
+        fat_100: 16.1
+    },
+    {
+        id: 'food_172',
+        name: 'Tavuk Döner Porsiyon',
+        kcal_100: 198,
+        protein_100: 17.9,
+        carb_100: 7.4,
+        fat_100: 10.6
+    },
+    {
+        id: 'food_173',
+        name: 'Et Döner Dürüm',
+        kcal_100: 257,
+        protein_100: 14.6,
+        carb_100: 23.1,
+        fat_100: 11.8
+    },
+    {
+        id: 'food_174',
+        name: 'Tavuk Döner Dürüm',
+        kcal_100: 229,
+        protein_100: 13.8,
+        carb_100: 24.7,
+        fat_100: 8.6
+    },
+    {
+        id: 'food_175',
+        name: 'Tavuklu Sezar Salata',
+        kcal_100: 142,
+        protein_100: 11.4,
+        carb_100: 6.5,
+        fat_100: 7.8
+    },
+    {
+        id: 'food_176',
+        name: 'Ton Balıklı Salata',
+        kcal_100: 131,
+        protein_100: 10.6,
+        carb_100: 5.1,
+        fat_100: 7.3
+    },
+    {
+        id: 'food_177',
+        name: 'Çoban Salata',
+        kcal_100: 42,
+        protein_100: 1.2,
+        carb_100: 6.4,
+        fat_100: 1.2
+    },
+    {
+        id: 'food_178',
+        name: 'Gavurdağı Salata',
+        kcal_100: 118,
+        protein_100: 2.6,
+        carb_100: 8.3,
+        fat_100: 8.4
+    },
+    {
+        id: 'food_179',
+        name: 'Piyaz',
+        kcal_100: 156,
+        protein_100: 7.2,
+        carb_100: 17.1,
+        fat_100: 6.4
+    },
+    {
+        id: 'food_180',
+        name: 'Kısır',
+        kcal_100: 181,
+        protein_100: 4.1,
+        carb_100: 29.4,
+        fat_100: 5.2
+    },
+    {
+        id: 'food_181',
+        name: 'Zeytinyağlı Enginar',
+        kcal_100: 96,
+        protein_100: 2.1,
+        carb_100: 9.5,
+        fat_100: 5.7
+    },
+    {
+        id: 'food_182',
+        name: 'Karnıyarık',
+        kcal_100: 164,
+        protein_100: 7.8,
+        carb_100: 8.3,
+        fat_100: 10.9
+    },
+    {
+        id: 'food_183',
+        name: 'İmam Bayıldı',
+        kcal_100: 127,
+        protein_100: 1.9,
+        carb_100: 10.2,
+        fat_100: 8.4
+    },
+    {
+        id: 'food_184',
+        name: 'Etli Biber Dolması',
+        kcal_100: 151,
+        protein_100: 6.7,
+        carb_100: 14.8,
+        fat_100: 7.5
+    },
+    {
+        id: 'food_185',
+        name: 'Zeytinyağlı Biber Dolması',
+        kcal_100: 168,
+        protein_100: 3.1,
+        carb_100: 24.6,
+        fat_100: 6.8
+    },
+    {
+        id: 'food_186',
+        name: 'Tavuk Sote',
+        kcal_100: 163,
+        protein_100: 19.2,
+        carb_100: 4.7,
+        fat_100: 7.2
+    },
+    {
+        id: 'food_187',
+        name: 'Et Sote',
+        kcal_100: 189,
+        protein_100: 18.6,
+        carb_100: 5.3,
+        fat_100: 9.7
+    },
+    {
+        id: 'food_188',
+        name: 'Izgara Köfte',
+        kcal_100: 254,
+        protein_100: 17.8,
+        carb_100: 4.1,
+        fat_100: 18.6
+    },
+    {
+        id: 'food_189',
+        name: 'Izgara Somon',
+        kcal_100: 208,
+        protein_100: 22.1,
+        carb_100: 0,
+        fat_100: 13.1
+    },
+    {
+        id: 'food_190',
+        name: 'Fırında Levrek',
+        kcal_100: 146,
+        protein_100: 21.5,
+        carb_100: 0,
+        fat_100: 6.2
+    },
+    {
+        id: 'food_191',
+        name: 'Ton Balıklı Makarna',
+        kcal_100: 214,
+        protein_100: 11.3,
+        carb_100: 26.4,
+        fat_100: 7.1
+    },
+    {
+        id: 'food_192',
+        name: 'Kıymalı Makarna',
+        kcal_100: 226,
+        protein_100: 10.9,
+        carb_100: 27.3,
+        fat_100: 8.2
+    },
+    {
+        id: 'food_193',
+        name: 'Peynirli Makarna',
+        kcal_100: 238,
+        protein_100: 9.8,
+        carb_100: 28.1,
+        fat_100: 9.4
+    },
+    {
+        id: 'food_194',
+        name: 'Domates Çorbası',
+        kcal_100: 54,
+        protein_100: 1.5,
+        carb_100: 8.2,
+        fat_100: 1.7
+    },
+    {
+        id: 'food_195',
+        name: 'Mercimek Çorbası',
+        kcal_100: 76,
+        protein_100: 3.8,
+        carb_100: 11.1,
+        fat_100: 1.9
+    },
+    {
+        id: 'food_196',
+        name: 'Tavuk Suyu Çorba',
+        kcal_100: 43,
+        protein_100: 3.6,
+        carb_100: 2.7,
+        fat_100: 2
+    },
+    {
+        id: 'food_197',
+        name: 'Ezogelin Çorbası',
+        kcal_100: 71,
+        protein_100: 2.9,
+        carb_100: 11.6,
+        fat_100: 1.5
+    },
+    {
+        id: 'food_198',
+        name: 'Yayla Çorbası',
+        kcal_100: 63,
+        protein_100: 2.4,
+        carb_100: 8.3,
+        fat_100: 2.2
+    },
+    {
+        id: 'food_199',
+        name: 'Yoğurtlu Tavuklu Wrap',
+        kcal_100: 221,
+        protein_100: 14.8,
+        carb_100: 20.7,
+        fat_100: 8.3
+    },
+    {
+        id: 'food_200',
+        name: 'Fırında Tavuklu Sebze',
+        kcal_100: 149,
+        protein_100: 13.2,
+        carb_100: 6.9,
+        fat_100: 7.4
     }
 ];
 
