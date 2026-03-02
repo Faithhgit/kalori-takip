@@ -443,6 +443,166 @@ export const drinks = [
         protein_100: 10.4,
         carb_100: 5.5,
         fat_100: 0.3
+    },
+    {
+        id: 'drink_056',
+        name: 'Türk Kahvesi (Orta Şekerli)',
+        kcal_100: 18,
+        protein_100: 0.2,
+        carb_100: 4.2,
+        fat_100: 0
+    },
+    {
+        id: 'drink_057',
+        name: 'Türk Kahvesi (Şekerli)',
+        kcal_100: 24,
+        protein_100: 0.2,
+        carb_100: 5.8,
+        fat_100: 0
+    },
+    {
+        id: 'drink_058',
+        name: 'Çay (Şekerli)',
+        kcal_100: 16,
+        protein_100: 0,
+        carb_100: 4,
+        fat_100: 0
+    },
+    {
+        id: 'drink_059',
+        name: 'Limonata (Şekersiz)',
+        kcal_100: 8,
+        protein_100: 0,
+        carb_100: 2.1,
+        fat_100: 0
+    },
+    {
+        id: 'drink_060',
+        name: 'Portakallı Soda',
+        kcal_100: 28,
+        protein_100: 0,
+        carb_100: 6.9,
+        fat_100: 0
+    },
+    {
+        id: 'drink_061',
+        name: 'Ayran (300 ml)',
+        kcal_100: 37,
+        protein_100: 2,
+        carb_100: 2.9,
+        fat_100: 2
+    },
+    {
+        id: 'drink_062',
+        name: 'Kefir (Sade)',
+        kcal_100: 61,
+        protein_100: 3.3,
+        carb_100: 4.8,
+        fat_100: 3.2
+    },
+    {
+        id: 'drink_063',
+        name: 'Sade Maden Suyu (Limonlu)',
+        kcal_100: 1,
+        protein_100: 0,
+        carb_100: 0.2,
+        fat_100: 0
+    },
+    {
+        id: 'drink_064',
+        name: 'Meyveli Soda',
+        kcal_100: 27,
+        protein_100: 0,
+        carb_100: 6.7,
+        fat_100: 0
+    },
+    {
+        id: 'drink_065',
+        name: 'Soğuk Çay (Şeftali, Şekersiz)',
+        kcal_100: 3,
+        protein_100: 0,
+        carb_100: 0.7,
+        fat_100: 0
+    },
+    {
+        id: 'drink_066',
+        name: 'Soğuk Çay (Limon, Şekersiz)',
+        kcal_100: 3,
+        protein_100: 0,
+        carb_100: 0.8,
+        fat_100: 0
+    },
+    {
+        id: 'drink_067',
+        name: 'Soğuk Çay (Limon, Şekerli)',
+        kcal_100: 29,
+        protein_100: 0,
+        carb_100: 7.1,
+        fat_100: 0
+    },
+    {
+        id: 'drink_068',
+        name: 'Taze Sıkma Portakal Suyu',
+        kcal_100: 45,
+        protein_100: 0.7,
+        carb_100: 10.4,
+        fat_100: 0.2
+    },
+    {
+        id: 'drink_069',
+        name: 'Şalgam (Acısız)',
+        kcal_100: 12,
+        protein_100: 0.3,
+        carb_100: 2.3,
+        fat_100: 0
+    },
+    {
+        id: 'drink_070',
+        name: 'Şalgam (Acılı)',
+        kcal_100: 13,
+        protein_100: 0.3,
+        carb_100: 2.5,
+        fat_100: 0
+    },
+    {
+        id: 'drink_071',
+        name: 'Kola Zero',
+        kcal_100: 0,
+        protein_100: 0,
+        carb_100: 0,
+        fat_100: 0
+    },
+    {
+        id: 'drink_072',
+        name: 'Gazoz (Kutu)',
+        kcal_100: 40,
+        protein_100: 0,
+        carb_100: 10,
+        fat_100: 0
+    },
+    {
+        id: 'drink_073',
+        name: 'Hazır Soğuk Kahve (Sütlü)',
+        kcal_100: 62,
+        protein_100: 2.2,
+        carb_100: 9.1,
+        fat_100: 1.8
+    },
+    {
+        id: 'drink_074',
+        name: 'Proteinli Kahve İçeceği',
+        kcal_100: 54,
+        protein_100: 5.8,
+        carb_100: 5.4,
+        fat_100: 1
+    },
+    {
+        id: 'drink_075',
+        name: 'Smoothie (Çilekli, Sütlü)',
+        kcal_100: 74,
+        protein_100: 2.9,
+        carb_100: 12.4,
+        fat_100: 1.3
     }
 ];
 

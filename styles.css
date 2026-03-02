@@ -950,11 +950,14 @@ h1, h2, h3 {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+    align-items: start;
+    margin-bottom: 12px;
 }
 
 .add-meta-grid .form-group {
     margin-bottom: 0;
     min-width: 0;
+    overflow: hidden;
 }
 
 .form-group {
@@ -1058,6 +1061,8 @@ input[type="date"] {
 }
 
 .add-meta-grid .log-date-input {
+    width: 100%;
+    max-width: 100%;
     min-height: 42px;
     padding: 8px 10px;
     font-size: 0.88rem;
@@ -1267,6 +1272,7 @@ input::placeholder {
 
 .add-section .btn-add {
     min-height: 46px;
+    margin-top: 8px;
     padding: 10px 12px;
     font-size: 0.95rem;
 }
@@ -1528,6 +1534,11 @@ input::placeholder {
         grid-template-columns: 1fr;
     }
 
+    .add-meta-grid {
+        gap: 8px;
+        margin-bottom: 14px;
+    }
+
     .add-section .radio-group-3 {
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 8px;
@@ -1603,6 +1614,9 @@ input::placeholder {
     }
 
     .add-meta-grid .log-date-input {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
         min-height: 38px;
         padding: 6px 8px;
         font-size: 0.88rem;

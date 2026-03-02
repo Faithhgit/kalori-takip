@@ -1726,7 +1726,7 @@ function renderCatalog() {
     }
 
     listEl.innerHTML = items.map(item => `
-        <div class="catalog-item">
+        <div class="catalog-item" data-item-id="${item.id}" data-item-type="${item._type}">
             <div class="catalog-item-header">
                 <span class="catalog-item-name">${escapeHtml(item.name)}</span>
                 <span class="catalog-item-type-badge">${item._type === 'food' ? '🍗' : '🥤'}</span>
@@ -1739,6 +1739,28 @@ function renderCatalog() {
             </div>
         </div>
     `).join('');
+
+    listEl.querySelectorAll('.catalog-item').forEach((el) => {
+        el.addEventListener('click', () => {
+            const itemId = el.dataset.itemId;
+            const itemType = el.dataset.itemType === 'drink' ? 'drink' : 'food';
+            const source = itemType === 'food' ? foods : drinks;
+            const item = source.find((i) => i.id === itemId);
+            if (!item) return;
+
+            if (typeof window.switchTab === 'function') {
+                window.switchTab('add');
+            }
+
+            const targetRadio = document.querySelector(`input[name="itemType"][value="${itemType}"]`);
+            if (targetRadio && !targetRadio.checked) {
+                targetRadio.checked = true;
+                targetRadio.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            selectItem(item, itemType);
+        });
+    });
 }
 
 // --- Meal Templates ---
