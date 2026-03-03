@@ -1765,6 +1765,7 @@ function renderCatalog() {
 
 // --- Meal Templates ---
 const TEMPLATES_KEY = 'mealTemplates';
+const TEMPLATES_SYNC_META_KEY = 'mealTemplatesSyncMeta';
 let templateCache = [];
 let currentTemplateItems = [];
 let tplSelectedItem = null;
@@ -1811,32 +1812,61 @@ function loadTemplatesFromLocal() {
     } catch { return []; }
 }
 
+function getLocalTemplatesUpdatedAtMs() {
+    try {
+        const meta = JSON.parse(localStorage.getItem(TEMPLATES_SYNC_META_KEY)) || {};
+        const updatedAtMs = Number(meta.updatedAtMs);
+        return Number.isFinite(updatedAtMs) && updatedAtMs > 0 ? updatedAtMs : 0;
+    } catch {
+        return 0;
+    }
+}
+
+function setLocalTemplatesUpdatedAtMs(updatedAtMs = Date.now()) {
+    const safeMs = Number(updatedAtMs);
+    const finalMs = Number.isFinite(safeMs) && safeMs > 0 ? safeMs : Date.now();
+    localStorage.setItem(TEMPLATES_SYNC_META_KEY, JSON.stringify({ updatedAtMs: finalMs }));
+    return finalMs;
+}
+
 function saveTemplatesToLocal(templates) {
     localStorage.setItem(TEMPLATES_KEY, JSON.stringify(normalizeTemplates(templates)));
 }
 
 async function loadTemplatesFromCloud() {
-    if (!db) return [];
+    if (!db) return { templates: [], updatedAtMs: 0 };
 
     try {
         const templateRef = doc(db, SETTINGS_COLLECTION, TEMPLATES_SETTINGS_DOC_ID);
         const snap = await getDoc(templateRef);
-        if (!snap.exists()) return [];
+        if (!snap.exists()) return { templates: [], updatedAtMs: 0 };
         const data = snap.data() || {};
-        return normalizeTemplates(data.templates);
+        const fromField = Number(data.updated_at_ms);
+        const fromTimestamp = data.updated_at && typeof data.updated_at.toMillis === 'function'
+            ? data.updated_at.toMillis()
+            : 0;
+        const updatedAtMs = Number.isFinite(fromField) && fromField > 0 ? fromField : fromTimestamp;
+        return {
+            templates: normalizeTemplates(data.templates),
+            updatedAtMs: Number.isFinite(updatedAtMs) && updatedAtMs > 0 ? updatedAtMs : 0
+        };
     } catch (error) {
         console.warn('Cloud templates could not be loaded:', error);
-        return [];
+        return { templates: [], updatedAtMs: 0 };
     }
 }
 
-async function saveTemplatesToCloud(templates) {
+async function saveTemplatesToCloud(templates, updatedAtMs = Date.now()) {
     if (!db) return false;
 
     try {
+        const safeUpdatedAtMs = Number.isFinite(Number(updatedAtMs)) && Number(updatedAtMs) > 0
+            ? Number(updatedAtMs)
+            : Date.now();
         const templateRef = doc(db, SETTINGS_COLLECTION, TEMPLATES_SETTINGS_DOC_ID);
         await setDoc(templateRef, {
             templates: normalizeTemplates(templates),
+            updated_at_ms: safeUpdatedAtMs,
             updated_at: serverTimestamp()
         }, { merge: true });
         return true;
@@ -1848,13 +1878,18 @@ async function saveTemplatesToCloud(templates) {
 
 async function initializeTemplates() {
     const localTemplates = loadTemplatesFromLocal();
+    const localUpdatedAtMs = getLocalTemplatesUpdatedAtMs();
     templateCache = localTemplates;
 
-    const cloudTemplates = await loadTemplatesFromCloud();
+    const cloudData = await loadTemplatesFromCloud();
+    const cloudTemplates = cloudData.templates;
+    const cloudUpdatedAtMs = cloudData.updatedAtMs;
 
     if (cloudTemplates.length === 0) {
         if (localTemplates.length > 0) {
-            await saveTemplatesToCloud(localTemplates);
+            const syncMs = localUpdatedAtMs || Date.now();
+            setLocalTemplatesUpdatedAtMs(syncMs);
+            await saveTemplatesToCloud(localTemplates, syncMs);
         }
         return;
     }
@@ -1862,6 +1897,20 @@ async function initializeTemplates() {
     if (localTemplates.length === 0) {
         templateCache = cloudTemplates;
         saveTemplatesToLocal(templateCache);
+        setLocalTemplatesUpdatedAtMs(cloudUpdatedAtMs || Date.now());
+        return;
+    }
+
+    if (localUpdatedAtMs > 0 && cloudUpdatedAtMs > 0 && localUpdatedAtMs !== cloudUpdatedAtMs) {
+        if (localUpdatedAtMs > cloudUpdatedAtMs) {
+            templateCache = localTemplates;
+            saveTemplatesToLocal(templateCache);
+            await saveTemplatesToCloud(templateCache, localUpdatedAtMs);
+        } else {
+            templateCache = cloudTemplates;
+            saveTemplatesToLocal(templateCache);
+            setLocalTemplatesUpdatedAtMs(cloudUpdatedAtMs);
+        }
         return;
     }
 
@@ -1873,7 +1922,9 @@ async function initializeTemplates() {
 
     templateCache = [...mergedById.values()];
     saveTemplatesToLocal(templateCache);
-    await saveTemplatesToCloud(templateCache);
+    const mergedSyncMs = Math.max(localUpdatedAtMs, cloudUpdatedAtMs, Date.now());
+    setLocalTemplatesUpdatedAtMs(mergedSyncMs);
+    await saveTemplatesToCloud(templateCache, mergedSyncMs);
 }
 
 function loadTemplates() {
@@ -1883,6 +1934,7 @@ function loadTemplates() {
 function saveTemplates(templates) {
     templateCache = normalizeTemplates(templates);
     saveTemplatesToLocal(templateCache);
+    return setLocalTemplatesUpdatedAtMs(Date.now());
 }
 
 async function addLogBatch(items, logDate = getToday()) {
@@ -1977,10 +2029,10 @@ async function applyTemplate(templateId) {
 
 async function deleteTemplate(templateId) {
     const templates = loadTemplates().filter(t => t.id !== templateId);
-    saveTemplates(templates);
+    const updatedAtMs = saveTemplates(templates);
     renderTemplateList();
 
-    const cloudSaved = await saveTemplatesToCloud(templates);
+    const cloudSaved = await saveTemplatesToCloud(templates, updatedAtMs);
     if (!cloudSaved) {
         showError('Sablon Firebase\'e kaydedilemedi. Firestore kurallarini kontrol edin.');
     }
@@ -2037,11 +2089,11 @@ async function saveCurrentTemplate() {
     };
     const templates = loadTemplates();
     templates.push(template);
-    saveTemplates(templates);
+    const updatedAtMs = saveTemplates(templates);
     hideTemplateForm();
     renderTemplateList();
 
-    const cloudSaved = await saveTemplatesToCloud(templates);
+    const cloudSaved = await saveTemplatesToCloud(templates, updatedAtMs);
     if (!cloudSaved) {
         showError('Sablon Firebase\'e kaydedilemedi. Firestore kurallarini kontrol edin.');
     }
@@ -2183,6 +2235,7 @@ function resetLocalData() {
         WEIGHT_LOG_KEY,
         RECENT_ITEMS_KEY,
         TEMPLATES_KEY,
+        TEMPLATES_SYNC_META_KEY,
         LAUNCH_MOTIVATION_LAST_KEY,
         LOG_RETENTION_LAST_RUN_KEY
     ];

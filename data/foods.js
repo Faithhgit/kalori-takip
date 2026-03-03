@@ -1603,6 +1603,46 @@ export const foods = [
         protein_100: 13.2,
         carb_100: 6.9,
         fat_100: 7.4
+    },
+    {
+        id: 'food_201',
+        name: 'Lavaş',
+        kcal_100: 297,
+        protein_100: 8.1,
+        carb_100: 56.8,
+        fat_100: 4.2
+    },
+    {
+        id: 'food_202',
+        name: 'Bazlama',
+        kcal_100: 267,
+        protein_100: 8.6,
+        carb_100: 51.3,
+        fat_100: 2.8
+    },
+    {
+        id: 'food_203',
+        name: 'Yoğurt (Tam Yağlı)',
+        kcal_100: 61,
+        protein_100: 3.5,
+        carb_100: 4.7,
+        fat_100: 3.3
+    },
+    {
+        id: 'food_204',
+        name: 'Yoğurt (Yağsız)',
+        kcal_100: 38,
+        protein_100: 4.1,
+        carb_100: 4.6,
+        fat_100: 0.2
+    },
+    {
+        id: 'food_205',
+        name: 'Havuç Salatası',
+        kcal_100: 72,
+        protein_100: 1.2,
+        carb_100: 8.5,
+        fat_100: 3.8
     }
 ];
 
