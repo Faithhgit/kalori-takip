@@ -1,4 +1,4 @@
-﻿import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+﻿﻿import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getFirestore, collection, addDoc, query, where, getDocs, getDoc, deleteDoc, doc, setDoc, updateDoc, serverTimestamp, orderBy, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
 import { foods } from './data/foods.js';
@@ -9,11 +9,12 @@ const TARGETS_KEY = 'calorieTargets';
 const SETTINGS_COLLECTION = 'app_settings';
 const SETTINGS_DOC_ID = 'default_settings';
 const TEMPLATES_SETTINGS_DOC_ID = 'meal_templates';
+const LOCK_TARGETS_TO_FIXED_PLAN = true;
 const DEFAULT_TARGETS = Object.freeze({
-    kcal: 2200,
+    kcal: 2320,
     protein: 150,
     carb: 250,
-    fat: 70
+    fat: 80
 });
 let TARGETS = loadTargets();
 
@@ -21,18 +22,31 @@ function getDefaultTargets() {
     return { ...DEFAULT_TARGETS };
 }
 
+function normalizeTargets(targets) {
+    if (LOCK_TARGETS_TO_FIXED_PLAN) return getDefaultTargets();
+
+    return {
+        kcal: Number(targets?.kcal) || DEFAULT_TARGETS.kcal,
+        protein: Number(targets?.protein) || DEFAULT_TARGETS.protein,
+        carb: Number(targets?.carb) || DEFAULT_TARGETS.carb,
+        fat: Number(targets?.fat) || DEFAULT_TARGETS.fat
+    };
+}
+
 function loadTargets() {
+    if (LOCK_TARGETS_TO_FIXED_PLAN) return getDefaultTargets();
+
     try {
         const stored = JSON.parse(localStorage.getItem(TARGETS_KEY));
-        return stored || getDefaultTargets();
+        return normalizeTargets(stored);
     } catch (error) {
         return getDefaultTargets();
     }
 }
 
 function saveTargets(targets) {
-    TARGETS = targets;
-    localStorage.setItem(TARGETS_KEY, JSON.stringify(targets));
+    TARGETS = normalizeTargets(targets);
+    localStorage.setItem(TARGETS_KEY, JSON.stringify(TARGETS));
     updateSummary();
     renderChart();
 }
@@ -63,7 +77,7 @@ async function loadSettingsFromCloud() {
 
         const data = snap.data() || {};
 
-        if (data.targets && typeof data.targets === 'object') {
+        if (!LOCK_TARGETS_TO_FIXED_PLAN && data.targets && typeof data.targets === 'object') {
             const nextTargets = {
                 kcal: Number(data.targets.kcal) || TARGETS.kcal,
                 protein: Number(data.targets.protein) || TARGETS.protein,
@@ -88,7 +102,7 @@ async function saveSettingsToCloud(targets, profile) {
     try {
         const settingsRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC_ID);
         await setDoc(settingsRef, {
-            targets,
+            targets: normalizeTargets(targets),
             profile,
             updated_at: serverTimestamp()
         }, { merge: true });
@@ -294,10 +308,10 @@ function calculateAndShowGoals() {
 
     const bmr = calcBMR(gender, weight, height, age);
     const tdee = calcTDEE(bmr, activity, trainingDays);
-    const targetKcal = applyGoalMode(tdee, goalMode);
-    const protein = suggestProtein(weight, goalMode);
-    const fat = suggestFat(weight);
-    const carb = suggestCarb(targetKcal, protein, fat);
+    const targetKcal = DEFAULT_TARGETS.kcal;
+    const protein = DEFAULT_TARGETS.protein;
+    const fat = DEFAULT_TARGETS.fat;
+    const carb = DEFAULT_TARGETS.carb;
 
     // Hedef alanlarına doldur
     document.getElementById('targetKcal').value = targetKcal;
@@ -325,6 +339,70 @@ function calculateAndShowGoals() {
         Karbonhidrat: <strong>${carb}g</strong>
     `;
     recEl.style.display = 'block';
+}
+
+function getItemByIdOrName(itemId, itemName) {
+    const normalizedName = String(itemName || '').trim().toLocaleLowerCase('tr-TR');
+    return [...foods, ...drinks].find((item) =>
+        item.id === itemId ||
+        String(item.name || '').trim().toLocaleLowerCase('tr-TR') === normalizedName
+    ) || null;
+}
+
+function calculateLogNutrition(item, amount) {
+    const refAmount = Number(item?.ref_amount) || 100;
+    const multiplier = (Number(amount) || refAmount) / refAmount;
+    return {
+        kcal: Math.round((Number(item?.kcal_100) || 0) * multiplier),
+        protein: Math.round((Number(item?.protein_100) || 0) * multiplier * 10) / 10,
+        carb: Math.round((Number(item?.carb_100) || 0) * multiplier * 10) / 10,
+        fat: Math.round((Number(item?.fat_100) || 0) * multiplier * 10) / 10
+    };
+}
+
+async function syncExistingLogsToCurrentData() {
+    if (!db) return;
+
+    try {
+        const snap = await getDocs(collection(db, 'daily_logs'));
+        if (snap.empty) return;
+
+        const batch = writeBatch(db);
+        let changed = 0;
+
+        snap.forEach((docSnap) => {
+            const data = docSnap.data();
+            const sourceItem = getItemByIdOrName(data.item_id, data.item_name);
+            if (!sourceItem) return;
+
+            const amount = Number(data.grams) || Number(sourceItem.ref_amount) || 100;
+            const next = calculateLogNutrition(sourceItem, amount);
+            const nextName = sourceItem.name;
+
+            if (
+                data.kcal !== next.kcal ||
+                data.protein !== next.protein ||
+                data.carb !== next.carb ||
+                data.fat !== next.fat ||
+                data.item_name !== nextName
+            ) {
+                batch.update(doc(db, 'daily_logs', docSnap.id), {
+                    item_name: nextName,
+                    kcal: next.kcal,
+                    protein: next.protein,
+                    carb: next.carb,
+                    fat: next.fat
+                });
+                changed += 1;
+            }
+        });
+
+        if (changed > 0) {
+            await batch.commit();
+        }
+    } catch (error) {
+        console.warn('Existing logs sync failed:', error);
+    }
 }
 
 // 7 günlük hareketli ortalama hesapla
@@ -411,6 +489,9 @@ function renderWeightSection() {
     const listEl = document.getElementById('weightLogList');
     const statsEl = document.getElementById('weightStats');
     const adaptiveBtn = document.getElementById('updateGoalsAdaptive');
+    if (LOCK_TARGETS_TO_FIXED_PLAN) {
+        adaptiveBtn.style.display = 'none';
+    }
 
     // Son 14 gün listesi
     const recent14 = entries.slice(0, 14);
@@ -447,21 +528,15 @@ function renderWeightSection() {
     // İstatistikler
     const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
 
-    // 7 günlük ortalama
-    const avg7 = calcMovingAverage(sorted, Math.min(7, sorted.length));
-    document.getElementById('weightAvg7').textContent = avg7 ? `${avg7.toFixed(1)} kg` : '-';
+    // Genel ortalama
+    const avgAll = sorted.reduce((sum, entry) => sum + entry.weight, 0) / sorted.length;
+    document.getElementById('weightAvg7').textContent = Number.isFinite(avgAll) ? `${avgAll.toFixed(1)} kg` : '-';
 
-    // Haftalık değişim
-    if (sorted.length >= 7) {
-        const first7 = sorted.slice(0, Math.min(7, Math.floor(sorted.length / 2)));
-        const last7 = sorted.slice(-7);
-        const avgF = first7.reduce((s, e) => s + e.weight, 0) / first7.length;
-        const avgL = last7.reduce((s, e) => s + e.weight, 0) / last7.length;
-        const delta = avgL - avgF;
-        const daysBetween = sorted.length;
-        const weeklyDelta = (delta / daysBetween) * 7;
-        const sign = weeklyDelta >= 0 ? '+' : '';
-        document.getElementById('weightChange').textContent = `${sign}${weeklyDelta.toFixed(2)} kg/hafta`;
+    // Genel değişim
+    if (sorted.length >= 2) {
+        const delta = sorted[sorted.length - 1].weight - sorted[0].weight;
+        const sign = delta >= 0 ? '+' : '';
+        document.getElementById('weightChange').textContent = `${sign}${delta.toFixed(1)} kg`;
     } else {
         document.getElementById('weightChange').textContent = '-';
     }
@@ -476,6 +551,10 @@ function renderWeightSection() {
 async function loadExtendedLogsForAdaptive(weightEntries) {
     const tdeeEl = document.getElementById('adaptiveTdee');
     const adaptiveBtn = document.getElementById('updateGoalsAdaptive');
+
+    if (LOCK_TARGETS_TO_FIXED_PLAN) {
+        adaptiveBtn.style.display = 'none';
+    }
 
     if (weightEntries.length < 7) {
         tdeeEl.textContent = 'Yetersiz veri';
@@ -846,8 +925,8 @@ function updateGoalStreak() {
         const dayLogs = weekLogs.filter(log => log.date === date);
         const dayTotal = dayLogs.reduce((sum, log) => sum + log.kcal, 0);
 
-        // Check if goal was met (within 90-110% range)
-        const goalMet = dayTotal >= TARGETS.kcal * 0.9 && dayTotal <= TARGETS.kcal * 1.1;
+        // Check if goal was met (within 70-120% range)
+        const goalMet = dayTotal >= TARGETS.kcal * 0.7 && dayTotal <= TARGETS.kcal * 1.2;
 
         if (goalMet) {
             streak++;
@@ -1123,7 +1202,7 @@ function renderChart() {
     const weekTotal = values.reduce((sum, v) => sum + v, 0);
     const weekAvg = Math.round(weekTotal / 7);
     const activeDays = values.filter(v => v > 0).length;
-    const hitDays = values.filter(v => v >= TARGETS.kcal * 0.9 && v <= TARGETS.kcal * 1.1).length;
+    const hitDays = values.filter(v => v >= TARGETS.kcal * 0.7 && v <= TARGETS.kcal * 1.2).length;
 
     const maxKcal = Math.max(...values, TARGETS.kcal, 1);
     const targetGuidePercent = Math.min((TARGETS.kcal / maxKcal) * 100, 100);
@@ -1173,7 +1252,7 @@ function renderChart() {
                 <div class="chart-stat">
                     <div class="chart-stat-label">Hedefe Uyum</div>
                     <div class="chart-stat-value">${hitDays} gün</div>
-                    <div class="chart-stat-sub">(%90-%110 aralığı)</div>
+                    <div class="chart-stat-sub">(%70-%120 aralığı)</div>
                 </div>
                 <div class="chart-stat">
                     <div class="chart-stat-label">En Yüksek Gün</div>
@@ -1192,9 +1271,9 @@ function renderChart() {
                     const fillPercent = day.kcal > 0
                         ? Math.max(3, Math.min((day.kcal / maxKcal) * 100, 100))
                         : 0;
-                    const statusClass = day.kcal > TARGETS.kcal * 1.1
+                    const statusClass = day.kcal > TARGETS.kcal * 1.2
                         ? 'over'
-                        : (day.kcal > 0 && day.kcal < TARGETS.kcal * 0.9 ? 'under' : 'balanced');
+                        : (day.kcal > 0 && day.kcal < TARGETS.kcal * 0.7 ? 'under' : 'balanced');
                     const isToday = day.date === getToday();
 
                     return `
@@ -1220,7 +1299,7 @@ function getGoalStreak() {
     for (const date of dates) {
         const dayLogs = weekLogs.filter(log => log.date === date);
         const dayTotal = dayLogs.reduce((sum, log) => sum + log.kcal, 0);
-        if (dayTotal >= TARGETS.kcal * 0.9 && dayTotal <= TARGETS.kcal * 1.1) {
+        if (dayTotal >= TARGETS.kcal * 0.7 && dayTotal <= TARGETS.kcal * 1.2) {
             streak++;
         } else {
             break;
@@ -2471,6 +2550,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initializeTemplates();
     await loadSettingsFromCloud();
     await initializeWeightLog();
+    await syncExistingLogsToCurrentData();
     await pruneOldDailyLogsIfNeeded();
     await loadTodayLogs();
     await loadRecentLogs();
@@ -2480,6 +2560,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     hideLoading();
     setupMobileCollapsibles();
+
+    ['targetKcal', 'targetProtein', 'targetCarb', 'targetFat'].forEach((id) => {
+        const input = document.getElementById(id);
+        if (!input) return;
+        input.readOnly = LOCK_TARGETS_TO_FIXED_PLAN;
+        input.value = TARGETS[id.replace('target', '').toLowerCase()] ?? input.value;
+    });
     
     // Item type change
     document.querySelectorAll('input[name="itemType"]').forEach(radio => {
@@ -2700,6 +2787,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('targetProtein').value = TARGETS.protein;
         document.getElementById('targetCarb').value = TARGETS.carb;
         document.getElementById('targetFat').value = TARGETS.fat;
+        document.getElementById('targetKcal').readOnly = LOCK_TARGETS_TO_FIXED_PLAN;
+        document.getElementById('targetProtein').readOnly = LOCK_TARGETS_TO_FIXED_PLAN;
+        document.getElementById('targetCarb').readOnly = LOCK_TARGETS_TO_FIXED_PLAN;
+        document.getElementById('targetFat').readOnly = LOCK_TARGETS_TO_FIXED_PLAN;
 
         // Load profile values
         const prof = loadProfile();
@@ -2727,12 +2818,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     saveSettingsBtn.addEventListener('click', async () => {
-        const newTargets = {
-            kcal: parseInt(document.getElementById('targetKcal').value),
-            protein: parseInt(document.getElementById('targetProtein').value),
-            carb: parseInt(document.getElementById('targetCarb').value),
-            fat: parseInt(document.getElementById('targetFat').value)
-        };
+        const newTargets = getDefaultTargets();
 
         saveTargets(newTargets);
 
