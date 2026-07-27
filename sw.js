@@ -1,4 +1,4 @@
-const CACHE_NAME = 'denge-v34';
+const CACHE_NAME = 'denge-v54';
 const FIREBASE_SDK_ORIGIN = 'https://www.gstatic.com';
 const APP_SHELL = [
     './',
@@ -6,7 +6,12 @@ const APP_SHELL = [
     './styles.css',
     './router.js',
     './app.js',
+    './ai-config.js',
     './firebase-config.js',
+    './lib/ai.js',
+    './lib/ai-context.js',
+    './lib/ai-usage.js',
+    './lib/demo-data.js',
     './lib/nutrition.js',
     './lib/portion.js',
     './lib/planning.js',
@@ -15,6 +20,7 @@ const APP_SHELL = [
     './lib/firestore-store.js',
     './lib/progress-media.js',
     './lib/profile.js',
+    './lib/search.js',
     './lib/ui-components.js',
     './data/foods.js',
     './data/drinks.js',

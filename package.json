@@ -3,8 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node tests/nutrition.test.mjs && node tests/features.test.mjs && node scripts/audit-ui.mjs",
+    "test": "node tests/nutrition.test.mjs && node tests/features.test.mjs && node api/assistant.test.mjs && node scripts/audit-ui.mjs",
     "audit:data": "node scripts/audit-data.mjs",
+    "dev:ai": "node scripts/dev-assistant.mjs",
+    "demo:seed": "node scripts/firestore-demo.mjs seed",
+    "demo:clear": "node scripts/firestore-demo.mjs clear",
     "test:ui": "playwright test tests/mobile.spec.mjs"
   },
   "devDependencies": {
