@@ -1,53 +1,104 @@
-﻿# Kalori ve Makro Takip
+# Kalori ve Makro Takip
 
-HTML/CSS/Vanilla JS ile gelistirilmis, Firebase Firestore kullanan kalori ve makro takip uygulamasi.
+HTML, CSS ve Vanilla JavaScript ile geliştirilmiş; verilerini Firebase Firestore'da
+saklayan, kurulabilir bir kalori ve makro takip uygulaması.
 
-## Ozellikler
+## Özellikler
 
-- Gunluk kalori ve makro takibi (protein, karbonhidrat, yag)
-- Son 7 gun grafik ve motivasyon mesaji
-- Profil bilgisine gore hedef hesaplama (BMR/TDEE)
-- Kilo takibi ve adaptive TDEE yardimi
-- Ozellestirilebilir urun veritabani
-- Tum Urunler sekmesi (yiyecek/icecek filtre + arama)
-- Sablonlar sekmesi (sablon olustur, uygula, sil)
-- Dark/Light mode ve mobil uyumlu arayuz
+- Günlük kalori ve makro takibi
+- Kahvaltı, öğle, akşam ve ara öğün grupları
+- Hazır katalogda arama, favoriler ve son kullanılanlar
+- Özel besin oluşturma
+- Kayıtlı öğünler oluşturma ve günlüğe toplu ekleme
+- Günlük geçmişi, tarih aralığı filtresi ve gün kopyalama
+- Haftalık grafik, hedef serisi ve motivasyon özeti
+- Profil bilgilerine göre BMR, TDEE, kalori ve makro hedefi hesaplama
+- Kilo takibi ve yeterli veri olduğunda adaptif TDEE tahmini
+- JSON yedekleme/geri yükleme ve CSV dışa aktarma
+- Açık/koyu tema, mobil alt gezinme ve PWA çevrimdışı uygulama kabuğu
+- Gelecekte cihaz verileri için ayrılmış Sağlık sayfası
 
-## Guncel Veri Sayilari
+## Besin Kataloğu
 
-- Yiyecek: 43
-- Icecek: 33
-- Toplam urun: 76
+- Yiyecek: 205
+- İçecek: 100
+- Toplam: 305
 
-## Proje Yapisi
+Aynı ada sahip farklı porsiyon veya hazırlama türleri arayüzde ayırt edici
+bilgilerle gösterilir.
+
+## Proje Yapısı
 
 ```text
 /
 |-- index.html
 |-- styles.css
 |-- app.js
+|-- router.js
 |-- firebase-config.js
+|-- manifest.webmanifest
+|-- sw.js
+|-- icon.svg
 |-- data/
 |   |-- foods.js
 |   `-- drinks.js
+|-- lib/
+|   `-- nutrition.js
+|-- scripts/
+|   `-- audit-data.mjs
+|-- tests/
+|   `-- nutrition.test.mjs
+|-- package.json
 `-- README.md
 ```
 
-## Kurulum
+## Yerelde Çalıştırma
 
-1. Firebase projesi olustur.
-2. Firestore Database'i aktif et.
-3. `firebase-config.js` dosyasina kendi Firebase bilgilerini yaz.
-4. Projeyi static olarak calistir (Live Server vb.).
+ES modülleri ve service worker nedeniyle dosyayı doğrudan açmak yerine proje
+klasöründe bir statik sunucu başlatın:
 
-## Veri Modeli (daily_logs)
+```bash
+python -m http.server 4173
+```
+
+Ardından `http://127.0.0.1:4173/` adresini açın.
+
+## Firebase Kurulumu
+
+1. Bir Firebase projesi oluşturun.
+2. Firestore Database'i etkinleştirin.
+3. `firebase-config.js` içindeki yapılandırmayı kendi projenizle değiştirin.
+4. Firestore güvenlik kurallarını kullanım modelinize göre tanımlayın.
+
+Uygulama şu anda kişisel kullanım için tek veri alanı kullanır; birden fazla
+kişinin kullanacağı dağıtımlarda kullanıcı doğrulama ve kullanıcıya özel
+Firestore yolları eklenmelidir.
+
+## Kontroller
+
+Node.js kuruluysa:
+
+```bash
+npm test
+npm run audit:data
+```
+
+İlk komut besin, hedef ve adaptif TDEE hesaplarını; ikinci komut statik besin
+kataloğundaki kimlikleri ve zorunlu alanları denetler.
+
+## Ana Veri Modeli
+
+`daily_logs` kayıtları temel olarak şu alanları taşır:
 
 ```js
 {
   date: "YYYY-MM-DD",
-  item_id: "food_001 | drink_001",
-  item_name: "Urun Adi",
+  item_id: "food_001 | drink_001 | custom_...",
+  item_name: "Ürün adı",
   grams: 150,
+  item_type: "food | drink",
+  unit: "g | ml",
+  meal_type: "breakfast | lunch | dinner | snack",
   kcal: 250,
   protein: 30,
   carb: 15,
@@ -56,8 +107,6 @@ HTML/CSS/Vanilla JS ile gelistirilmis, Firebase Firestore kullanan kalori ve mak
 }
 ```
 
-## Notlar
-
-- `data/foods.js` ve `data/drinks.js` dosyalari read-only kaynak listelerdir.
-- Yeni urun eklemek icin benzersiz `id` kullanin.
-- Uygulama kisisel kullanim odaklidir.
+`data/foods.js` ve `data/drinks.js` uygulamanın salt okunur başlangıç
+kataloğudur. Kullanıcının eklediği besinler `custom_items` koleksiyonunda
+saklanır.
