@@ -46,6 +46,10 @@
                     <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg>
                     <span>Besinler</span>
                 </button>
+                <button class="tab-button assistant-tab-button" data-tab="assistant" onclick="switchTab('assistant')">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 14 8.5 19.5 10 14 12l-2 5.5L10 12 4.5 10 10 8.5 12 3Z"/><path d="m18.5 16 .8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z"/></svg>
+                    <span>Asistan</span>
+                </button>
                 <button class="tab-button" data-tab="health" onclick="switchTab('health')">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/><path d="M3.5 12h4l1.5-3 2.6 7 2-4h6.9"/></svg>
                     <span>Sağlık</span>
@@ -54,6 +58,9 @@
             <div class="header-meta">
                 <div class="top-date" id="dateDisplay"></div>
                 <div class="floating-actions">
+                    <button class="icon-btn icon-btn-only assistant-header-btn" id="assistantHeaderBtn" type="button" title="Denge Asistanı'nı aç" aria-label="Denge Asistanı'nı aç">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 14 8.5 19.5 10 14 12l-2 5.5L10 12 4.5 10 10 8.5 12 3Z"/><path d="m18.5 16 .8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z"/></svg>
+                    </button>
                     <button class="icon-btn icon-btn-only" id="darkModeBtn" type="button" title="Koyu temaya geç" aria-label="Koyu temaya geç"></button>
                     <button class="icon-btn icon-btn-primary icon-btn-only" id="settingsBtn" type="button" title="Ayarları aç" aria-label="Ayarları aç">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg>
@@ -73,15 +80,20 @@
                 <div class="settings-connection">
                     <div>
                         <strong>Veri bağlantısı</strong>
-                        <span>Firebase senkronizasyon durumu</span>
+                        <span>Senkronizasyon durumu</span>
                     </div>
                     <div class="sync-indicator" id="syncIndicator" role="status" aria-live="polite">
                         <span aria-hidden="true"></span>
                         <strong>Bağlı</strong>
                     </div>
                 </div>
+                <details class="settings-accordion" open>
+                    <summary>
+                        <span>Profil ve plan</span>
+                        <small>Vücut bilgileri ve hedef seçimi</small>
+                    </summary>
+                    <div class="settings-accordion-body">
                 <!-- Profil Bilgileri -->
-                <div class="settings-section-title">Sana özel plan</div>
                 <div class="settings-row">
                     <div class="settings-group settings-half">
                         <label for="profileGender">Cinsiyet</label>
@@ -145,11 +157,16 @@
                     <div class="goal-rec-title">Sana önerilen günlük plan</div>
                     <div id="goalRecContent"></div>
                 </div>
+                    </div>
+                </details>
 
-                <hr class="settings-divider">
-
+                <details class="settings-accordion">
+                    <summary>
+                        <span>Günlük hedefler</span>
+                        <small>Enerji ve makro dağılımı</small>
+                    </summary>
+                    <div class="settings-accordion-body">
                 <!-- Hedef Değerleri -->
-                <div class="settings-section-title">Günlük hedeflerin</div>
                 <div class="settings-group macro-strategy-field">
                     <label for="macroStrategy">Makro dağılımı</label>
                     <select id="macroStrategy">
@@ -203,9 +220,15 @@
                     </div>
                 </div>
                 <p class="day-target-note">Haftalık ortalama enerji hedefin korunarak otomatik hesaplanır.</p>
-                <hr class="settings-divider">
-                <div class="settings-reset-box">
-                    <div class="settings-section-title">Verilerin</div>
+                    </div>
+                </details>
+
+                <details class="settings-accordion settings-data-accordion">
+                    <summary>
+                        <span>Veriler</span>
+                        <small>Yedekleme, dışa aktarma ve sıfırlama</small>
+                    </summary>
+                    <div class="settings-accordion-body settings-reset-box">
                     <p class="settings-reset-text">Kayıtlarını yedekle, tablo olarak dışa aktar veya daha önce aldığın bir yedeği geri yükle.</p>
                     <div class="data-action-grid">
                         <button class="btn btn-secondary btn-sm" id="exportJsonBtn" type="button">Yedek indir</button>
@@ -213,9 +236,20 @@
                         <button class="btn btn-secondary btn-sm" id="importJsonBtn" type="button">Yedek yükle</button>
                         <input type="file" id="importJsonInput" accept="application/json,.json" hidden>
                     </div>
+                    <div class="demo-data-panel">
+                        <div>
+                            <strong>15 günlük test verisi</strong>
+                            <span id="demoDataStatus">Gerçek kayıtlarından ayrı işaretlenir.</span>
+                        </div>
+                        <div class="demo-data-actions">
+                            <button class="btn btn-secondary btn-sm" id="createDemoDataBtn" type="button">Demo oluştur</button>
+                            <button class="btn btn-danger-soft btn-sm" id="removeDemoDataBtn" type="button">Demoyu temizle</button>
+                        </div>
+                    </div>
                     <p class="settings-reset-text">Sıfırlama işlemi beslenme kayıtlarını, kilo geçmişini, özel besinleri, öğünleri ve tercihlerini kalıcı olarak siler.</p>
                     <button class="btn btn-danger-soft" id="resetAllDataBtn" type="button">Tüm verilerimi sil</button>
-                </div>
+                    </div>
+                </details>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" id="cancelSettings" type="button">İptal</button>
@@ -303,6 +337,30 @@
         </div>
     </div>
 
+    <div class="modal" id="mealPickerModal" role="dialog" aria-modal="true" aria-labelledby="mealPickerTitle" aria-describedby="mealPickerDescription">
+        <div class="modal-content modal-content-compact meal-picker-modal-content">
+            <div class="modal-header">
+                <div>
+                    <span class="modal-kicker">Günlüğe ekle</span>
+                    <h2 id="mealPickerTitle">Hangi öğüne eklensin?</h2>
+                </div>
+                <button class="modal-close" id="closeMealPicker" type="button" aria-label="Öğün seçimini kapat">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-support" id="mealPickerDescription">Kaydın gün içinde görüneceği öğünü seç.</p>
+                <div class="meal-picker-options">
+                    <button type="button" data-meal-choice="breakfast"><strong>Kahvaltı</strong><span>Sabah öğünü</span></button>
+                    <button type="button" data-meal-choice="lunch"><strong>Öğle</strong><span>Öğle öğünü</span></button>
+                    <button type="button" data-meal-choice="dinner"><strong>Akşam</strong><span>Akşam öğünü</span></button>
+                    <button type="button" data-meal-choice="snack"><strong>Ara öğün</strong><span>Atıştırma veya ek öğün</span></button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelMealPicker" type="button">Vazgeç</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Loading Overlay -->
     <div class="loading-overlay" id="loadingOverlay" role="status" aria-live="polite" aria-label="Yükleniyor">
         <div class="spinner"></div>
@@ -316,6 +374,19 @@
         <header class="page-titlebar">
             <div>
                 <h1 id="pageTitle">Özet</h1>
+            </div>
+            <div class="dashboard-date-nav" aria-label="Özet tarihi">
+                <button type="button" id="dashboardPrevDate" aria-label="Önceki gün">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                </button>
+                <label for="dashboardDate">
+                    <span id="dashboardDateCaption">Bugün</span>
+                    <input type="date" id="dashboardDate" aria-label="Özet tarihi seç">
+                </label>
+                <button type="button" id="dashboardNextDate" aria-label="Sonraki gün">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
+                <button type="button" class="dashboard-today-btn" id="dashboardTodayDate">Bugün</button>
             </div>
         </header>
         <div class="main-content">
@@ -339,7 +410,7 @@
                             <span class="eyebrow">Bugünün dengesi</span>
                             <h1>Günlük enerji</h1>
                         </div>
-                        <button class="summary-add-btn" type="button" onclick="switchTab('add')">
+                        <button class="summary-add-btn" type="button" onclick="openDashboardAdd()">
                             <span aria-hidden="true">+</span>
                             <span>Öğün ekle</span>
                         </button>
@@ -347,8 +418,10 @@
                     <div class="calorie-dashboard">
                         <div class="calorie-ring" id="calorieRing" style="--progress: 0">
                             <div class="calorie-ring-inner">
+                                <span class="calorie-ring-kicker" id="summaryDateLabel">Bugün</span>
                                 <strong class="calorie-current" id="currentKcal">0</strong>
                                 <span class="calorie-ring-unit">kcal tüketildi</span>
+                                <span class="calorie-ring-status" id="calorieRingStatus">%0 hedef</span>
                             </div>
                         </div>
                         <div class="calorie-metrics">
@@ -363,7 +436,7 @@
                             <div class="calorie-progress">
                                 <div class="calorie-progress-copy">
                                     <span>Hedefe ilerleme</span>
-                                    <span>Bugün</span>
+                                    <span id="summaryProgressDate">Bugün</span>
                                 </div>
                                 <div class="calorie-bar-container" aria-hidden="true">
                                     <div class="calorie-bar" id="calorieBar" style="width: 0%"></div>
@@ -412,6 +485,16 @@
                         </div>
                     </div>
                     <p class="macro-guidance" id="macroGuidance"></p>
+                    <div class="daily-micro-summary" aria-label="Günlük toplam şeker ve tuz">
+                        <span>
+                            <small>Toplam şeker</small>
+                            <strong id="dailySugarValue">0 g</strong>
+                        </span>
+                        <span>
+                            <small>Tuz eşdeğeri</small>
+                            <strong id="dailySaltValue">0 g</strong>
+                        </span>
+                    </div>
                 </section>
 
                 <!-- Kilo Takibi Card -->
@@ -679,8 +762,8 @@
                                     </select>
                                 </div>
 
-                                <div class="form-group">
-                                    <label for="mealType">Öğün zamanı</label>
+                                <div class="form-group meal-suggestion-field" aria-hidden="true">
+                                    <label for="mealType">Önerilen öğün</label>
                                     <select id="mealType">
                                         <option value="breakfast">Kahvaltı</option>
                                         <option value="lunch">Öğle</option>
@@ -742,8 +825,8 @@
                 </div>
 
                 <div class="catalog-switcher" data-page="catalog" role="tablist" aria-label="Besinler görünümü">
-                    <button class="catalog-view-btn active" type="button" data-catalog-view="foods" role="tab" aria-selected="true">Besin kütüphanesi</button>
-                    <button class="catalog-view-btn" type="button" data-catalog-view="templates" role="tab" aria-selected="false">Öğünler ve tarifler</button>
+                    <button class="catalog-view-btn active" type="button" data-catalog-view="templates" role="tab" aria-selected="true">Öğünler ve tarifler</button>
+                    <button class="catalog-view-btn" type="button" data-catalog-view="foods" role="tab" aria-selected="false">Besin kütüphanesi</button>
                 </div>
 
                 <!-- Catalog Tab -->
@@ -752,19 +835,16 @@
                         <div class="catalog-controls">
                             <div class="catalog-filter-row">
                                 <div class="catalog-category-btns">
-                                <button class="catalog-filter-btn active" type="button" data-category="all">Hepsi</button>
-                                <button class="catalog-filter-btn catalog-favorites-btn" type="button" data-category="favorite">
-                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></svg>
-                                        Favoriler
-                                    </button>
-                                <button class="catalog-filter-btn" type="button" data-category="food">Yiyecek</button>
-                                <button class="catalog-filter-btn" type="button" data-category="drink">İçecek</button>
+                                    <button class="catalog-filter-btn active" type="button" data-category="food">Yiyecek</button>
+                                    <button class="catalog-filter-btn" type="button" data-category="drink">İçecek</button>
                                 </div>
                             </div>
                             <input type="text" id="catalogSearch" aria-label="Besinlerde ara" placeholder="Besinlerde ara…" class="catalog-search-input">
                         </div>
                         <div class="catalog-count" id="catalogCount">0 besin</div>
+                        <p class="catalog-data-note">Değerler 100 g veya 100 ml içindir. Marka ve tarife göre değişen kayıtlar “yaklaşık” olarak işaretlenir.</p>
                         <div class="catalog-list" id="catalogList"></div>
+                        <nav class="catalog-pagination" id="catalogPagination" aria-label="Besin kütüphanesi sayfaları"></nav>
                     </section>
                 </div>
 
@@ -784,7 +864,7 @@
                         <div id="templateFormView" style="display: none;">
                             <div class="template-form-header">
                                 <button class="btn btn-secondary btn-sm" id="backToTemplates" type="button">← Geri</button>
-                                <h3>Yeni öğün veya tarif oluştur</h3>
+                                <h3 id="templateFormTitle">Yeni öğün veya tarif oluştur</h3>
                             </div>
                             <div class="form-group">
                                 <label for="templateName">Öğün adı</label>
@@ -807,7 +887,8 @@
                                 <div class="settings-row">
                                     <div class="settings-group settings-half">
                                         <label for="templateYield">Hazırlanınca toplam miktar</label>
-                                        <input type="number" id="templateYield" min="1" max="100000" step="1" placeholder="Örneğin 850">
+                                        <input type="number" id="templateYield" min="1" max="100000" step="1" placeholder="1">
+                                        <small class="recipe-yield-hint">Boş bırakırsan eklenen malzemelerin toplamı kullanılır.</small>
                                     </div>
                                     <div class="settings-group settings-half">
                                         <label for="templateYieldUnit">Birim</label>
@@ -825,8 +906,6 @@
                                     </select>
                                 </div>
                             </div>
-                            <div class="template-items-list" id="templateItemsList"></div>
-                            <div class="template-nutrition-preview" id="templateNutritionPreview"></div>
                             <div class="template-add-item">
                                 <div class="form-group" style="margin-bottom: 8px;">
                                     <label>Besin türü</label>
@@ -850,9 +929,117 @@
                                     <label for="tplGramsInput" id="tplAmountLabel">Porsiyon (gram)</label>
                                     <input type="number" id="tplGramsInput" placeholder="100" min="0.1" step="0.1">
                                 </div>
-                                <button class="btn btn-secondary" id="addItemToTemplate" type="button" style="width: 100%;">Öğüne ekle</button>
+                                <button class="btn btn-secondary" id="addItemToTemplate" type="button" style="width: 100%;">Listeye ekle</button>
+                                <div class="recipe-quick-ingredients" id="recipeQuickIngredients" hidden>
+                                    <div class="recipe-quick-group">
+                                        <span>Temel ekler</span>
+                                        <div>
+                                            <button type="button" data-quick-item="food_olive_oil" data-quick-amount="10">+ Zeytinyağı · 10 g</button>
+                                            <button type="button" data-quick-item="food_salt" data-quick-amount="2">+ Tuz · 2 g</button>
+                                            <button type="button" data-quick-item="food_sugar" data-quick-amount="5">+ Toz şeker · 5 g</button>
+                                        </div>
+                                    </div>
+                                    <div class="recipe-quick-group">
+                                        <span>Baharatlar</span>
+                                        <div>
+                                            <button type="button" data-quick-item="food_black_pepper" data-quick-amount="2">+ Karabiber · 2 g</button>
+                                            <button type="button" data-quick-item="food_chili_flakes" data-quick-amount="2">+ Pul biber · 2 g</button>
+                                            <button type="button" data-quick-item="food_thyme_dried" data-quick-amount="2">+ Kekik · 2 g</button>
+                                            <button type="button" data-quick-item="food_cumin" data-quick-amount="2">+ Kimyon · 2 g</button>
+                                        </div>
+                                    </div>
+                                    <div class="recipe-quick-group">
+                                        <span>Sos ve marine</span>
+                                        <div>
+                                            <button type="button" data-quick-item="food_bechamel_standard" data-quick-amount="50">+ Beşamel · 50 g</button>
+                                            <button type="button" data-quick-item="food_cooking_cream" data-quick-amount="30">+ Krema · 30 g</button>
+                                            <button type="button" data-quick-item="food_soy_sauce" data-quick-amount="15">+ Soya sosu · 15 g</button>
+                                            <button type="button" data-quick-item="food_tomato_paste" data-quick-amount="15">+ Salça · 15 g</button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
+                            <div class="template-items-list" id="templateItemsList"></div>
+                            <div class="template-nutrition-preview" id="templateNutritionPreview"></div>
                             <button class="btn btn-primary" id="saveTemplate" type="button" style="width: 100%; margin-top: 16px;">Öğünü kaydet</button>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Assistant Tab -->
+                <div id="assistant-tab" class="tab-content" data-page="assistant">
+                    <section class="assistant-section">
+                        <div class="assistant-hero">
+                            <div class="assistant-hero-mark" aria-hidden="true">
+                                <svg viewBox="0 0 32 32"><path d="M16 3.5 19 12l8.5 3-8.5 3-3 8.5-3-8.5-8.5-3 8.5-3 3-8.5Z"/><path d="m25 22 .9 2.6 2.6.9-2.6.9L25 29l-.9-2.6-2.6-.9 2.6-.9L25 22Z"/></svg>
+                            </div>
+                            <div>
+                                <span class="assistant-kicker">Denge Asistanı</span>
+                                <h2>Komutu yaz. Gerisini Denge halletsin.</h2>
+                                <p>Katalogda olmayan bir öğünü bulup ekler, son haftanı değerlendirir veya tek öğünlük öneri verir.</p>
+                            </div>
+                            <span class="assistant-status" id="assistantStatus" data-state="ready">
+                                <i aria-hidden="true"></i>
+                                <span>Hazır</span>
+                            </span>
+                        </div>
+
+                        <div class="assistant-layout">
+                            <div class="assistant-chat-card">
+                                <div class="assistant-card-heading">
+                                    <div>
+                                        <span>Hızlı komut</span>
+                                        <h3>Ne yapalım?</h3>
+                                    </div>
+                                    <span class="assistant-usage" id="assistantUsage">Kullanım yükleniyor</span>
+                                </div>
+
+                                <div class="assistant-command-result" id="assistantCommandResult" role="status" aria-live="polite">
+                                    <div>
+                                        <span>Bekliyor</span>
+                                        <p>Örneğin “öğle yemeğime bir dilim limonlu cheesecake ekle” yaz.</p>
+                                    </div>
+                                </div>
+
+                                <div class="assistant-starters" aria-label="Hızlı komutlar">
+                                    <button type="button" data-assistant-action="review">Son 7 günü değerlendir</button>
+                                    <button type="button" data-assistant-action="suggest">Öğün öner</button>
+                                    <button type="button" data-assistant-prompt="Öğle yemeğime bir dilim limonlu cheesecake ekle">Örnek besin ekle</button>
+                                </div>
+
+                                <div class="assistant-composer">
+                                    <textarea id="assistantInput" rows="3" maxlength="600" placeholder="Öğle yemeğime bir dilim limonlu cheesecake ekle"></textarea>
+                                    <div class="assistant-composer-footer">
+                                        <span>Enter çalıştırır · Shift + Enter yeni satır</span>
+                                        <button id="assistantSend" type="button">
+                                            <span>Çalıştır</span>
+                                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 5 16 7-16 7 3-7-3-7Z"/><path d="M7 12h13"/></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <aside class="assistant-review-card">
+                                <div class="assistant-review-top">
+                                    <span class="assistant-review-icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24"><path d="M5 19V9M10 19V5M15 19v-7M20 19V3"/></svg>
+                                    </span>
+                                    <div>
+                                        <span>Sessiz görevler</span>
+                                        <h3>Tek dokunuşla çalıştır</h3>
+                                    </div>
+                                </div>
+                                <p>Uzun sohbet yok. Sonuç gerektiği kadar kısa gösterilir.</p>
+                                <button class="assistant-review-btn" id="assistantReviewBtn" type="button">Günümü değerlendir</button>
+                                <button class="assistant-review-btn assistant-suggestion-btn" id="assistantMealSuggestionBtn" type="button">Öğün öner</button>
+                                <div class="assistant-review-result" id="assistantReviewResult" aria-live="polite">
+                                    <div class="assistant-review-empty">
+                                        <span>Kısa sonuç burada görünür.</span>
+                                        <small>Değerlendirme yalnızca son 7 günlük özet veriyi kullanır.</small>
+                                    </div>
+                                </div>
+                                <p class="assistant-privacy-note">Web araması yalnızca katalogda bulunmayan besinler için açılır.</p>
+                            </aside>
                         </div>
                     </section>
                 </div>

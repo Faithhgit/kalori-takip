@@ -7,6 +7,7 @@ import {
     getDoc,
     getDocs,
     getFirestore,
+    increment,
     initializeFirestore,
     orderBy,
     persistentLocalCache,
@@ -45,11 +46,14 @@ import {
     calculateGoalTarget,
     calculateMacroTargets,
     calculateRecipeNutrition,
+    createRecipeCatalogItem,
     getMacroGuidance,
     getNutritionConfidenceLabel,
     inferNutritionConfidence,
     normalizeMacroPreferences,
     resolveDayEnergyTarget,
+    sodiumMgToSaltGrams,
+    sumIngredientAmounts,
     sumNutrition
 } from './lib/planning.js';
 import {
@@ -66,6 +70,23 @@ import { APP_SCHEMA_VERSION, SCHEMA_VERSION_KEY, runLocalMigrations } from './li
 import { createFirestoreStore } from './lib/firestore-store.js';
 import { normalizeProfile, validateCompleteProfile } from './lib/profile.js';
 import { renderSelectOptions, setModalOpen } from './lib/ui-components.js';
+import {
+    normalizeSearchText,
+    rankSearchItems
+} from './lib/search.js';
+import {
+    buildAiCatalogCandidates,
+    compactAiCandidates,
+    detectAiCommandMode
+} from './lib/ai.js';
+import { buildCompactAiContext } from './lib/ai-context.js';
+import {
+    addAiUsage,
+    formatTokenCount,
+    normalizeAiUsage
+} from './lib/ai-usage.js';
+import { buildDemoDataset } from './lib/demo-data.js';
+import { AI_ENDPOINT } from './ai-config.js';
 
 runLocalMigrations(localStorage);
 
@@ -76,6 +97,8 @@ const SETTINGS_COLLECTION = 'app_settings';
 const SETTINGS_DOC_ID = 'default_settings';
 const TEMPLATES_SETTINGS_DOC_ID = 'meal_templates';
 const LOG_NUTRITION_REPAIR_KEY = 'logNutritionRepairV3';
+const CUSTOM_CATALOG_GENERATION = 2;
+const DEMO_DATA_STATE_KEY = 'dengeDemoDataState';
 const LOCK_TARGETS_TO_FIXED_PLAN = false;
 const DEFAULT_TARGETS = Object.freeze({
     kcal: 2320,
@@ -204,6 +227,11 @@ async function loadSettingsFromCloud() {
                 dailyMetaCache.set(date, meta && typeof meta === 'object' ? meta : {});
             });
             renderTodayTrainingToggle();
+        }
+
+        if (data.ai_usage && typeof data.ai_usage === 'object') {
+            assistantUsageCache = normalizeAiUsage(data.ai_usage);
+            renderAssistantUsage();
         }
 
         updateSummary();
@@ -518,7 +546,7 @@ function calculateAndShowGoals() {
 
 function getItemByIdOrName(itemId, itemName) {
     const normalizedName = String(itemName || '').trim().toLocaleLowerCase('tr-TR');
-    return [...foods, ...drinks].find((item) =>
+    return [...getItemsByType('food'), ...getItemsByType('drink')].find((item) =>
         item.id === itemId ||
         String(item.name || '').trim().toLocaleLowerCase('tr-TR') === normalizedName
     ) || null;
@@ -823,6 +851,8 @@ let todayLogs = [];
 let recentLogs = [];
 let weekLogs = [];
 let dateFilteredLogs = [];
+let dashboardDate = '';
+let dashboardDateLogs = [];
 let editingLogId = null;
 let lastEditLogTrigger = null;
 let lastSettingsTrigger = null;
@@ -835,10 +865,14 @@ let pendingUiMessage = null;
 let toastTimer = null;
 let toastSequence = 0;
 let confirmResolver = null;
+let mealPickerResolver = null;
 let movingMealContext = null;
 const dailyMetaCache = new Map();
 let measurementCache = [];
 let progressPhotoCache = [];
+let assistantBusy = false;
+let lastAssistantLogIds = [];
+let assistantUsageCache = normalizeAiUsage();
 
 // Initialize Firebase
 try {
@@ -879,6 +913,85 @@ function formatDate(dateStr) {
     const [year, month, day] = dateStr.split('-');
     return `${day}/${month}/${year}`;
 }
+
+function shiftDate(dateStr, dayOffset) {
+    const date = new Date(`${dateStr}T12:00:00`);
+    date.setDate(date.getDate() + dayOffset);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function getDashboardDate() {
+    return dashboardDate || getToday();
+}
+
+function getDashboardDateCaption(date = getDashboardDate()) {
+    if (date === getToday()) return 'Bugün';
+    if (date === shiftDate(getToday(), -1)) return 'Dün';
+    return `${getTurkishDayName(date)} · ${formatDate(date)}`;
+}
+
+function syncDashboardDateControls() {
+    const date = getDashboardDate();
+    const today = getToday();
+    const input = document.getElementById('dashboardDate');
+    const caption = document.getElementById('dashboardDateCaption');
+    const nextButton = document.getElementById('dashboardNextDate');
+    const todayButton = document.getElementById('dashboardTodayDate');
+    const dateLabel = getDashboardDateCaption(date);
+
+    if (input) {
+        input.value = date;
+        input.max = today;
+    }
+    if (caption) caption.textContent = dateLabel;
+    if (nextButton) nextButton.disabled = date >= today;
+    if (todayButton) todayButton.hidden = date === today;
+}
+
+function getDashboardLogs() {
+    const date = getDashboardDate();
+    if (date === getToday()) return todayLogs;
+    const cached = recentLogs.filter(log => log.date === date);
+    return cached.length > 0 ? cached : dashboardDateLogs;
+}
+
+async function setDashboardDate(value) {
+    const today = getToday();
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))
+        ? String(value)
+        : today;
+    dashboardDate = date > today ? today : date;
+    dashboardDateLogs = recentLogs.filter(log => log.date === dashboardDate);
+    syncDashboardDateControls();
+    updateSummary();
+
+    const historyStart = getDateDaysAgo(LOG_HISTORY_DAYS - 1);
+    if (!db || dashboardDate >= historyStart) return;
+
+    try {
+        const snapshot = await getDocs(
+            query(collection(db, 'daily_logs'), where('date', '==', dashboardDate))
+        );
+        dashboardDateLogs = [];
+        snapshot.forEach(docSnap => {
+            dashboardDateLogs.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        updateSummary();
+    } catch (error) {
+        console.error('Dashboard date could not be loaded:', error);
+        showError('Seçtiğin günün özeti yüklenemedi.');
+    }
+}
+
+function openDashboardAdd() {
+    const input = document.getElementById('logDate');
+    if (input) input.value = getDashboardDate();
+    if (typeof window.switchTab === 'function') window.switchTab('add');
+}
+window.openDashboardAdd = openDashboardAdd;
 
 function getTurkishDayName(dateStr) {
     const date = new Date(dateStr + 'T00:00:00');
@@ -1134,6 +1247,38 @@ function settleConfirmation(approved) {
     if (resolver) resolver(Boolean(approved));
 }
 
+function requestMealSelection({
+    itemLabel = 'Bu kayıt',
+    suggestedMeal = 'snack'
+} = {}) {
+    const modal = document.getElementById('mealPickerModal');
+    if (!modal) return Promise.resolve(null);
+    if (mealPickerResolver) mealPickerResolver(null);
+
+    const safeSuggestion = MEAL_LABELS[suggestedMeal] ? suggestedMeal : 'snack';
+    document.getElementById('mealPickerDescription').textContent =
+        `${itemLabel} hangi öğünde görünsün?`;
+    const buttons = [...modal.querySelectorAll('[data-meal-choice]')];
+    buttons.forEach(button => {
+        button.classList.toggle('is-suggested', button.dataset.mealChoice === safeSuggestion);
+    });
+    const focusTarget = buttons.find(button => button.dataset.mealChoice === safeSuggestion) || buttons[0];
+    setModalOpen(modal, true, focusTarget);
+
+    return new Promise(resolve => {
+        mealPickerResolver = resolve;
+    });
+}
+
+function settleMealSelection(mealType = null) {
+    const modal = document.getElementById('mealPickerModal');
+    setModalOpen(modal, false);
+    const resolver = mealPickerResolver;
+    mealPickerResolver = null;
+    const selectedMeal = MEAL_LABELS[mealType] ? mealType : null;
+    if (resolver) resolver(selectedMeal);
+}
+
 function showLoading() {
     document.getElementById('loadingOverlay')?.classList.remove('hidden');
 }
@@ -1190,6 +1335,7 @@ async function loadInitialDailyLogs() {
 
         recentLogs = loadedLogs;
         todayLogs = loadedLogs.filter(log => log.date === getToday());
+        dashboardDateLogs = loadedLogs.filter(log => log.date === getDashboardDate());
         const weekStart = getLast7Days()[0];
         weekLogs = loadedLogs.filter(log => log.date >= weekStart);
         if (logsDateFilter || logsDateToFilter) {
@@ -1268,12 +1414,16 @@ function renderTodayTrainingToggle() {
     const state = document.getElementById('dashboardTrainingState');
     if (!button || !label || !meta || !state) return;
 
-    const today = getToday();
-    const trained = dailyMetaCache.get(today)?.trained === true;
-    const activeTarget = getCalorieTargetForDate(today);
+    const date = getDashboardDate();
+    const isToday = date === getToday();
+    const datePrefix = isToday ? 'Bugün' : formatDate(date);
+    const trained = dailyMetaCache.get(date)?.trained === true;
+    const activeTarget = getCalorieTargetForDate(date);
     button.classList.toggle('is-training', trained);
     button.setAttribute('aria-pressed', String(trained));
-    label.textContent = trained ? 'Bugün antrenman yapmadım' : 'Bugün antrenman yaptım';
+    label.textContent = trained
+        ? `${datePrefix} antrenman yapmadım`
+        : `${datePrefix} antrenman yaptım`;
     meta.textContent = `${trained ? 'Antrenman' : 'Dinlenme'} hedefi aktif · ${activeTarget} kcal`;
     state.textContent = trained ? 'Antrenman' : 'Dinlenme';
 }
@@ -1286,7 +1436,7 @@ function refreshTodayTrainingViews() {
 
 async function toggleTodayTraining() {
     const button = document.getElementById('dashboardTrainingToggle');
-    const date = getToday();
+    const date = getDashboardDate();
     const hadPrevious = dailyMetaCache.has(date);
     const previous = { ...(dailyMetaCache.get(date) || {}) };
     const trained = previous.trained !== true;
@@ -1320,8 +1470,11 @@ async function toggleTodayTraining() {
         });
         dailyMetaCache.set(date, { ...payload, updated_at: new Date() });
         refreshTodayTrainingViews();
+        const dateLabel = date === getToday() ? 'Bugün' : formatDate(date);
         showError(
-            trained ? 'Bugün antrenman günü olarak kaydedildi.' : 'Bugün dinlenme günü olarak kaydedildi.',
+            trained
+                ? `${dateLabel} antrenman günü olarak kaydedildi.`
+                : `${dateLabel} dinlenme günü olarak kaydedildi.`,
             'success'
         );
     } catch (error) {
@@ -1813,6 +1966,7 @@ function renderLogs() {
                                 const fiber = Number.isFinite(Number(log.fiber)) ? Number(log.fiber) : 0;
                                 const sugar = Number.isFinite(Number(log.sugar)) ? Number(log.sugar) : 0;
                                 const sodium = Number.isFinite(Number(log.sodium)) ? Number(log.sodium) : 0;
+                                const saltEquivalent = sodiumMgToSaltGrams(sodium);
                                 const kcal = Number.isFinite(Number(log.kcal)) ? Number(log.kcal) : 0;
                                 const confidence = inferNutritionConfidence({
                                     name: log.item_name,
@@ -1832,7 +1986,7 @@ function renderLogs() {
                                             <span>Y ${fat}g</span>
                                             ${fiber > 0 ? `<span>L ${fiber}g</span>` : ''}
                                             ${sugar > 0 ? `<span>Ş ${sugar}g</span>` : ''}
-                                            ${sodium > 0 ? `<span>Na ${sodium}mg</span>` : ''}
+                                            ${saltEquivalent > 0 ? `<span>Tuz ${saltEquivalent}g</span>` : ''}
                                             ${confidenceLabel}
                                         </div>
                                     </div>
@@ -1921,9 +2075,17 @@ function renderLogs() {
 }
 
 function updateSummary() {
-    const totals = sumLogs(todayLogs);
-    const calorieTarget = getCalorieTargetForDate(getToday());
-    const macroTargets = getMacroTargetsForDate(getToday());
+    const date = getDashboardDate();
+    const totals = sumLogs(getDashboardLogs());
+    const calorieTarget = getCalorieTargetForDate(date);
+    const macroTargets = getMacroTargetsForDate(date);
+    const dateLabel = getDashboardDateCaption(date);
+
+    const summaryDateLabel = document.getElementById('summaryDateLabel');
+    const summaryProgressDate = document.getElementById('summaryProgressDate');
+    if (summaryDateLabel) summaryDateLabel.textContent = dateLabel;
+    if (summaryProgressDate) summaryProgressDate.textContent = dateLabel;
+    syncDashboardDateControls();
 
     // Update calorie display
     document.getElementById('currentKcal').textContent = totals.kcal;
@@ -1936,6 +2098,13 @@ function updateSummary() {
     const calorieRing = document.getElementById('calorieRing');
     if (calorieRing) {
         calorieRing.style.setProperty('--progress', percentage.toFixed(1));
+        calorieRing.classList.toggle('is-complete', totals.kcal >= calorieTarget);
+    }
+    const ringStatus = document.getElementById('calorieRingStatus');
+    if (ringStatus) {
+        ringStatus.textContent = totals.kcal > calorieTarget
+            ? `%${Math.round((totals.kcal / calorieTarget) * 100)} · aşıldı`
+            : `Hedefin %${Math.round(percentage)}'i`;
     }
     const remaining = calorieTarget - totals.kcal;
     document.getElementById('remainingKcal').textContent =
@@ -1948,6 +2117,14 @@ function updateSummary() {
     const macroGuidance = document.getElementById('macroGuidance');
     if (macroGuidance) {
         macroGuidance.textContent = getMacroGuidance(totals, macroTargets);
+    }
+    const dailySugarValue = document.getElementById('dailySugarValue');
+    const dailySaltValue = document.getElementById('dailySaltValue');
+    if (dailySugarValue) {
+        dailySugarValue.textContent = `${formatTemplateNutritionValue(totals.sugar)} g`;
+    }
+    if (dailySaltValue) {
+        dailySaltValue.textContent = `${sodiumMgToSaltGrams(totals.sodium)} g`;
     }
     renderTodayTrainingToggle();
 }
@@ -2354,8 +2531,11 @@ function savePortionUsage(item, itemType, amount, unit) {
     localStorage.setItem(PORTION_MEMORY_KEY, JSON.stringify(portionMemory));
 }
 
-function getItemsByType(itemType) {
-    return itemType === 'food' ? foods : drinks;
+function getItemsByType(itemType, { includeRecipes = true } = {}) {
+    const resolvedType = itemType === 'drink' ? 'drink' : 'food';
+    const baseItems = resolvedType === 'food' ? foods : drinks;
+    if (!includeRecipes) return baseItems;
+    return [...baseItems, ...getRecipeCatalogItems(resolvedType)];
 }
 
 function getDisplayItemName(item, itemType) {
@@ -2370,14 +2550,11 @@ function getDisplayItemName(item, itemType) {
     return `${item.name} · ${item.kcal_100} kcal/${unit}`;
 }
 
-function filterItems(searchTerm, itemType) {
-    const items = getItemsByType(itemType);
+function filterItems(searchTerm, itemType, options = {}) {
+    const items = getItemsByType(itemType, options);
     if (!searchTerm) return items;
 
-    const term = searchTerm.toLowerCase();
-    return items
-        .filter(item => item.name.toLowerCase().includes(term))
-        .slice(0, MAX_RESULTS);
+    return rankSearchItems(items, searchTerm, MAX_RESULTS);
 }
 
 function escapeHtml(value) {
@@ -2393,8 +2570,9 @@ function escapeHtml(value) {
 function highlightMatch(text, term) {
     if (!term) return escapeHtml(text);
 
-    const lowerText = text.toLowerCase();
-    const lowerTerm = term.toLowerCase();
+    const lowerText = normalizeSearchText(text);
+    const lowerTerm = normalizeSearchText(term);
+    if (!lowerTerm) return escapeHtml(text);
     let result = '';
     let index = 0;
 
@@ -2430,6 +2608,11 @@ function getProductCardContent(item, itemType, options = {}) {
     const confidenceBadge = confidence === 'verified'
         ? ''
         : `<span class="nutrition-confidence-badge" data-confidence="${confidence}">${getNutritionConfidenceLabel(confidence)}</span>`;
+    const categoryLabel = item.is_recipe ? 'Kendi tarifin' : (itemType === 'food' ? 'Yiyecek' : 'İçecek');
+    const fiber = Number(item.fiber_100) || 0;
+    const sugar = Number(item.sugar_100) || 0;
+    const salt = sodiumMgToSaltGrams(Number(item.sodium_100) || 0);
+    const sourceLabel = escapeHtml(item.nutrition_source || 'Besin veri tabanı');
     const actions = [];
 
     if (includeFavorite) {
@@ -2451,15 +2634,20 @@ function getProductCardContent(item, itemType, options = {}) {
             <div class="catalog-item-topline">
                 <div>
                     <div class="catalog-item-name">${nameHtml}</div>
-                    <div class="catalog-item-type">${itemType === 'food' ? 'Yiyecek' : 'İçecek'} · ${unit} ${confidenceBadge}</div>
+                    <div class="catalog-item-type" title="Kaynak: ${sourceLabel}">${categoryLabel} · ${unit} ${confidenceBadge}</div>
                 </div>
                 ${actions.length ? `<div class="catalog-card-actions">${actions.join('')}</div>` : ''}
             </div>
             <div class="catalog-nutrition">
                 <div class="catalog-energy"><strong>${item.kcal_100}</strong><span>kcal</span></div>
-                <div class="catalog-macro"><span>Protein</span><strong>${item.protein_100} g</strong></div>
-                <div class="catalog-macro"><span>Karbonhidrat</span><strong>${item.carb_100} g</strong></div>
-                <div class="catalog-macro"><span>Yağ</span><strong>${item.fat_100} g</strong></div>
+                <div class="catalog-macro"><span title="Protein">P</span><strong>${item.protein_100} g</strong></div>
+                <div class="catalog-macro"><span title="Karbonhidrat">K</span><strong>${item.carb_100} g</strong></div>
+                <div class="catalog-macro"><span title="Yağ">Y</span><strong>${item.fat_100} g</strong></div>
+            </div>
+            <div class="catalog-advanced" title="100 g veya 100 ml için; tuz, sodyumdan hesaplanır.">
+                <span>Lif <strong>${formatTemplateNutritionValue(fiber)} g</strong></span>
+                <span>Şeker <strong>${formatTemplateNutritionValue(sugar)} g</strong></span>
+                <span>Tuz <strong>${formatTemplateNutritionValue(salt)} g</strong></span>
             </div>
         </div>
     `;
@@ -2635,7 +2823,10 @@ function configurePortionControls(item, itemType, useRemembered = true) {
         : null;
     const defaultOption = options[0];
     unitSelect.value = rememberedOption?.value || defaultOption.value;
-    if (remembered) {
+    if (item?.is_recipe) {
+        unitSelect.value = item.recipe_yield_unit === 'ml' ? 'ml' : 'g';
+        amountInput.value = Number(item.recipe_default_amount) || (resolvedType === 'drink' ? 200 : 100);
+    } else if (remembered) {
         amountInput.value = remembered.amount;
     } else if (!amountInput.value) {
         amountInput.value = resolvedType === 'drink' ? 200 : 100;
@@ -2735,7 +2926,7 @@ function renderPendingLogItems() {
         <div class="add-queue-item">
             <div>
                 <strong>${escapeHtml(entry.item.name)}</strong>
-                <span>${entry.displayAmount} ${escapeHtml(entry.unitLabel)} · ${MEAL_LABELS[entry.meal_type]}</span>
+                <span>${entry.displayAmount} ${escapeHtml(entry.unitLabel)} · ${MEAL_LABELS[entry.meal_type] || 'Öğün seçilecek'}</span>
             </div>
             <button class="queue-delete-btn" type="button" data-index="${index}" aria-label="${escapeHtml(entry.item.name)} besinini listeden sil" title="Listeden sil">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>
@@ -2771,7 +2962,7 @@ function queueSelectedLogItem() {
         displayAmount: portion.displayAmount,
         display_unit: portion.unit,
         unitLabel: unitOption?.shortLabel || portion.unit,
-        meal_type: document.getElementById('mealType')?.value || 'snack'
+        meal_type: null
     });
     clearSelectedAddItem();
     renderPendingLogItems();
@@ -2901,25 +3092,26 @@ function openDropdownForInput(searchTerm, itemType) {
 }
 
 // --- Product Catalog ---
-let catalogCategory = 'all';
+let catalogCategory = 'food';
 let catalogSearchTerm = '';
+let catalogPage = 1;
+const CATALOG_PAGE_SIZE = 12;
 
 function getCatalogItems() {
-    let items = [];
-    if (catalogCategory === 'all' || catalogCategory === 'favorite' || catalogCategory === 'food') {
-        items = items.concat(foods.map(f => ({ ...f, _type: 'food' })));
-    }
-    if (catalogCategory === 'all' || catalogCategory === 'favorite' || catalogCategory === 'drink') {
-        items = items.concat(drinks.map(d => ({ ...d, _type: 'drink' })));
-    }
-    if (catalogCategory === 'favorite') {
-        items = items.filter(item => isFavoriteItem(item.id, item._type));
+    let items = [
+        ...getItemsByType('food').map(f => ({ ...f, _type: 'food' })),
+        ...getItemsByType('drink').map(d => ({ ...d, _type: 'drink' }))
+    ];
+    if (catalogCategory === 'drink') {
+        items = items.filter(item => item._type === 'drink');
+    } else {
+        items = items.filter(item => item._type === 'food');
     }
     if (catalogSearchTerm) {
-        const term = catalogSearchTerm.toLowerCase();
-        items = items.filter(item => item.name.toLowerCase().includes(term));
+        items = rankSearchItems(items, catalogSearchTerm);
+    } else {
+        items.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
     }
-    items.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
     return items;
 }
 
@@ -2927,15 +3119,23 @@ function renderCatalog() {
     const items = getCatalogItems();
     const listEl = document.getElementById('catalogList');
     const countEl = document.getElementById('catalogCount');
+    const paginationEl = document.getElementById('catalogPagination');
+    const totalPages = Math.max(1, Math.ceil(items.length / CATALOG_PAGE_SIZE));
+    catalogPage = Math.min(Math.max(1, catalogPage), totalPages);
+    const pageStart = (catalogPage - 1) * CATALOG_PAGE_SIZE;
+    const pageItems = items.slice(pageStart, pageStart + CATALOG_PAGE_SIZE);
 
-    countEl.textContent = `${items.length} besin`;
+    countEl.textContent = items.length > CATALOG_PAGE_SIZE
+        ? `${items.length} besin · ${catalogPage}/${totalPages}. sayfa`
+        : `${items.length} besin`;
 
     if (items.length === 0) {
         listEl.innerHTML = '<div class="catalog-empty">Aramana uygun bir besin bulunamadı.</div>';
+        paginationEl.innerHTML = '';
         return;
     }
 
-    listEl.innerHTML = items.map(item => {
+    listEl.innerHTML = pageItems.map(item => {
         return `
         <div class="catalog-item" data-item-id="${item.id}" data-item-type="${item._type}" role="button" tabindex="0">
             ${getProductCardContent(item, item._type, { includeFavorite: true })}
@@ -2977,6 +3177,26 @@ function renderCatalog() {
             el.click();
         });
     });
+
+    if (totalPages <= 1) {
+        paginationEl.innerHTML = '';
+        return;
+    }
+
+    paginationEl.innerHTML = `
+        <button type="button" data-catalog-page="${catalogPage - 1}" ${catalogPage === 1 ? 'disabled' : ''}>← Önceki</button>
+        <span><strong>${catalogPage}</strong> / ${totalPages}</span>
+        <button type="button" data-catalog-page="${catalogPage + 1}" ${catalogPage === totalPages ? 'disabled' : ''}>Sonraki →</button>
+    `;
+    paginationEl.querySelectorAll('[data-catalog-page]').forEach(button => {
+        button.addEventListener('click', () => {
+            const nextPage = Number(button.dataset.catalogPage);
+            if (!Number.isInteger(nextPage) || nextPage < 1 || nextPage > totalPages) return;
+            catalogPage = nextPage;
+            renderCatalog();
+            document.getElementById('catalog-tab')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
 }
 
 // --- Meal Templates ---
@@ -2986,6 +3206,7 @@ let templateCache = [];
 let currentTemplateItems = [];
 let tplSelectedItem = null;
 let tplDropdownItems = [];
+let editingTemplateId = null;
 
 function normalizeTemplate(raw) {
     if (!raw || typeof raw !== 'object') return null;
@@ -3171,10 +3392,17 @@ function saveTemplates(templates) {
     return setLocalTemplatesUpdatedAtMs(Date.now());
 }
 
+function getTemplateCatalogItem(entry) {
+    const source = entry?.type === 'drink' ? drinks : foods;
+    const normalizedName = normalizeSearchText(entry?.item_name);
+    return source.find(candidate => candidate.id === entry?.item_id)
+        || source.find(candidate => normalizeSearchText(candidate.name) === normalizedName)
+        || null;
+}
+
 function getTemplateIngredientNutrition(template) {
     return (template?.items || []).map(entry => {
-        const source = entry.type === 'food' ? foods : drinks;
-        const item = source.find(candidate => candidate.id === entry.item_id);
+        const item = getTemplateCatalogItem(entry);
         return item ? calculateLogNutrition(item, entry.grams) : null;
     }).filter(Boolean);
 }
@@ -3189,7 +3417,15 @@ function getRecipeDefaultAmount(template) {
     return Math.round((yieldAmount / servings) * 10) / 10;
 }
 
-async function addRecipeLog(template, consumedAmount, logDate = getToday()) {
+function getRecipeCatalogItems(itemType) {
+    const resolvedType = itemType === 'drink' ? 'drink' : 'food';
+    return loadTemplates()
+        .filter(template => template.kind === 'recipe')
+        .map(template => createRecipeCatalogItem(template, getTemplateIngredientNutrition(template)))
+        .filter(item => item?.type === resolvedType);
+}
+
+async function addRecipeLog(template, consumedAmount, logDate = getToday(), mealType = 'snack') {
     const amount = Number(consumedAmount);
     const yieldAmount = Number(template?.yieldAmount);
     if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(yieldAmount) || yieldAmount <= 0) {
@@ -3202,7 +3438,6 @@ async function addRecipeLog(template, consumedAmount, logDate = getToday()) {
         amount
     );
     const unit = template.yieldUnit === 'ml' ? 'ml' : 'g';
-    const mealType = document.getElementById('mealType')?.value || 'snack';
     await addDoc(collection(db, 'daily_logs'), {
         date: logDate,
         item_id: template.id,
@@ -3222,7 +3457,7 @@ async function addRecipeLog(template, consumedAmount, logDate = getToday()) {
     });
 }
 
-async function addLogBatch(items, logDate = getToday()) {
+async function addLogBatch(items, logDate = getToday(), mealTypeOverride = null) {
     if (!Array.isArray(items) || items.length === 0) return;
     if (items.length > 400) {
         throw new Error('Bir kayıtlı öğünde en fazla 400 besin bulunabilir.');
@@ -3231,22 +3466,25 @@ async function addLogBatch(items, logDate = getToday()) {
     const batch = writeBatch(db);
     let addedCount = 0;
     for (const entry of items) {
-        const source = entry.type === 'food' ? foods : drinks;
-        const item = source.find(s => s.id === entry.item_id);
+        const item = getItemByIdOrName(entry?.item_id, entry?.item_name);
         if (!item) continue;
 
-        const nutrition = calculateLogNutrition(item, entry.grams);
-        const itemType = entry.type === 'drink' ? 'drink' : 'food';
+        const amount = Number(entry?.grams);
+        if (!Number.isFinite(amount) || amount <= 0) continue;
+        const nutrition = calculateLogNutrition(item, amount);
+        const itemType = getItemType(item);
         const logData = {
             date: logDate,
             item_id: item.id,
             item_name: item.name,
-            grams: entry.grams,
+            grams: amount,
             item_type: itemType,
             unit: itemType === 'drink' ? 'ml' : 'g',
-            display_amount: Number(entry.displayAmount) || entry.grams,
+            display_amount: Number(entry.displayAmount) || amount,
             display_unit: entry.display_unit || (itemType === 'drink' ? 'ml' : 'g'),
-            meal_type: MEAL_LABELS[entry.meal_type] ? entry.meal_type : (document.getElementById('mealType')?.value || 'snack'),
+            meal_type: MEAL_LABELS[mealTypeOverride]
+                ? mealTypeOverride
+                : (MEAL_LABELS[entry.meal_type] ? entry.meal_type : 'snack'),
             nutrition_confidence: inferNutritionConfidence(item),
             schema_version: APP_SCHEMA_VERSION,
             ...nutrition,
@@ -3306,6 +3544,7 @@ function renderTemplateList() {
                     </div>
                     <div class="template-card-actions">
                         ${applyControl}
+                        <button class="btn btn-secondary btn-sm template-edit" data-id="${tpl.id}">Düzenle</button>
                         <button class="btn btn-secondary btn-sm template-delete" data-id="${tpl.id}">Sil</button>
                     </div>
                 </div>
@@ -3322,6 +3561,9 @@ function renderTemplateList() {
             const amount = Number(card?.querySelector('[data-recipe-amount]')?.value);
             applyTemplate(btn.dataset.id, amount);
         });
+    });
+    listEl.querySelectorAll('.template-edit').forEach(btn => {
+        btn.addEventListener('click', () => showTemplateForm(btn.dataset.id));
     });
     listEl.querySelectorAll('.template-delete').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -3343,6 +3585,16 @@ async function applyTemplate(templateId, recipeAmount = 0) {
     const tpl = templates.find(t => t.id === templateId);
     if (!tpl) return;
     const logDate = getSelectedLogDate();
+    if (!logDate) {
+        showError('Günlüğe eklenecek tarihi seç.');
+        return;
+    }
+    const mealType = await requestMealSelection({
+        itemLabel: tpl.name,
+        suggestedMeal: document.getElementById('mealType')?.value || 'snack'
+    });
+    if (!mealType) return;
+
     // Batch: tum loglari ekle, sonra tek seferde yenile
     try {
         if (tpl.kind === 'recipe') {
@@ -3351,9 +3603,9 @@ async function applyTemplate(templateId, recipeAmount = 0) {
                 showError(`Tarifin toplamı ${tpl.yieldAmount} ${tpl.yieldUnit}. Daha düşük bir miktar gir.`);
                 return;
             }
-            await addRecipeLog(tpl, amount, logDate);
+            await addRecipeLog(tpl, amount, logDate, mealType);
         } else {
-            await addLogBatch(tpl.items, logDate);
+            await addLogBatch(tpl.items, logDate, mealType);
         }
     } catch (error) {
         console.error('Template could not be applied:', error);
@@ -3371,6 +3623,7 @@ async function deleteTemplate(templateId) {
     const templates = loadTemplates().filter(t => t.id !== templateId);
     const updatedAtMs = saveTemplates(templates);
     renderTemplateList();
+    renderCatalog();
 
     const cloudSaved = await saveTemplatesToCloud(templates, updatedAtMs);
     if (!cloudSaved) {
@@ -3378,72 +3631,241 @@ async function deleteTemplate(templateId) {
     }
 }
 
-function showTemplateForm() {
+function showTemplateForm(templateId = null) {
+    const template = typeof templateId === 'string'
+        ? loadTemplates().find(candidate => candidate.id === templateId)
+        : null;
+    editingTemplateId = template?.id || null;
+
     document.getElementById('templateListView').style.display = 'none';
     document.getElementById('templateFormView').style.display = 'block';
-    document.getElementById('templateName').value = '';
-    document.getElementById('templateKind').value = 'meal';
-    document.getElementById('templateServings').value = '1';
-    document.getElementById('templateYield').value = '';
-    document.getElementById('templateYieldUnit').value = 'g';
-    document.getElementById('templateConfidence').value = 'personal';
-    document.getElementById('recipeSettings').hidden = true;
-    currentTemplateItems = [];
+    document.getElementById('templateName').value = template?.name || '';
+    document.getElementById('templateKind').value = template?.kind || 'meal';
+    document.getElementById('templateServings').value = String(template?.servings || 1);
+    document.getElementById('templateYield').value = template?.kind === 'recipe'
+        ? String(template.yieldAmount)
+        : '';
+    document.getElementById('templateYieldUnit').value = template?.yieldUnit || 'g';
+    document.getElementById('templateConfidence').value = template?.nutritionConfidence || 'personal';
+    document.getElementById('recipeSettings').hidden = template?.kind !== 'recipe';
+    document.getElementById('recipeQuickIngredients').hidden = template?.kind !== 'recipe';
+    document.getElementById('templateFormTitle').textContent = template
+        ? (template.kind === 'recipe' ? 'Tarifi düzenle' : 'Kayıtlı öğünü düzenle')
+        : 'Yeni öğün veya tarif oluştur';
+    document.querySelector('label[for="templateName"]').textContent = template?.kind === 'recipe'
+        ? 'Tarif adı'
+        : 'Öğün adı';
+    document.getElementById('saveTemplate').textContent = template
+        ? 'Değişiklikleri kaydet'
+        : 'Öğünü kaydet';
+    currentTemplateItems = template
+        ? template.items.map(item => ({ ...item }))
+        : [];
     tplSelectedItem = null;
+    document.getElementById('tplSearchInput').value = '';
+    document.getElementById('tplGramsInput').value = '';
+    closeTplDropdown();
     renderTemplateFormItems();
 }
 
 function hideTemplateForm() {
     document.getElementById('templateFormView').style.display = 'none';
     document.getElementById('templateListView').style.display = 'block';
+    editingTemplateId = null;
     currentTemplateItems = [];
     tplSelectedItem = null;
 }
 
-function renderTemplateFormItems() {
-    const listEl = document.getElementById('templateItemsList');
+function getTemplateFormItemNutrition(entry) {
+    const item = getTemplateCatalogItem(entry);
+    return item ? calculateLogNutrition(item, entry.grams) : {
+        kcal: 0,
+        protein: 0,
+        carb: 0,
+        fat: 0
+    };
+}
+
+function formatTemplateNutritionValue(value) {
+    return Math.round((Number(value) || 0) * 10) / 10;
+}
+
+function addItemToCurrentTemplate(item, type, amount) {
+    const safeAmount = Number(amount);
+    if (!item || !Number.isFinite(safeAmount) || safeAmount <= 0 || safeAmount > 100000) return false;
+
+    const itemType = type === 'drink' ? 'drink' : 'food';
+    const existing = currentTemplateItems.find(entry =>
+        entry.item_id === item.id && entry.type === itemType
+    );
+    if (existing) {
+        existing.grams = Math.round((Number(existing.grams) + safeAmount) * 10) / 10;
+    } else {
+        currentTemplateItems.push({
+            item_id: item.id,
+            item_name: item.name,
+            grams: safeAmount,
+            type: itemType
+        });
+    }
+    renderTemplateFormItems();
+    return true;
+}
+
+function getTemplateItemNutritionMarkup(entry) {
+    const nutrition = getTemplateFormItemNutrition(entry);
+    return `
+        <strong>${Math.round(nutrition.kcal)} kcal</strong>
+        <span>P ${formatTemplateNutritionValue(nutrition.protein)}g · K ${formatTemplateNutritionValue(nutrition.carb)}g · Y ${formatTemplateNutritionValue(nutrition.fat)}g</span>
+    `;
+}
+
+function renderTemplateNutritionPreview() {
     const previewEl = document.getElementById('templateNutritionPreview');
+    if (!previewEl) return;
     if (currentTemplateItems.length === 0) {
-        listEl.innerHTML = '<div class="template-empty-items">Bu öğüne henüz besin eklenmedi.</div>';
-        if (previewEl) previewEl.textContent = '';
+        previewEl.textContent = '';
         return;
     }
-    listEl.innerHTML = currentTemplateItems.map((item, i) => `
-        <div class="template-form-item">
-            <span class="template-form-item-name">${escapeHtml(item.item_name)} - ${item.grams}${item.type === 'drink' ? 'ml' : 'g'}</span>
-            <button class="template-form-item-remove" data-index="${i}">✕</button>
+
+    const totals = sumNutrition(currentTemplateItems.map(getTemplateFormItemNutrition));
+    const isRecipe = document.getElementById('templateKind')?.value === 'recipe';
+    const amountTotals = sumIngredientAmounts(currentTemplateItems);
+    const yieldInput = document.getElementById('templateYield');
+    const yieldUnitInput = document.getElementById('templateYieldUnit');
+    if (isRecipe && yieldInput && !yieldInput.value && yieldUnitInput) {
+        if (amountTotals.ml > 0 && amountTotals.g === 0) yieldUnitInput.value = 'ml';
+        if (amountTotals.g > 0 && amountTotals.ml === 0) yieldUnitInput.value = 'g';
+    }
+    const amountParts = [
+        amountTotals.g > 0 ? `${formatTemplateNutritionValue(amountTotals.g)} g` : '',
+        amountTotals.ml > 0 ? `${formatTemplateNutritionValue(amountTotals.ml)} ml` : ''
+    ].filter(Boolean);
+    const saltEquivalent = sodiumMgToSaltGrams(totals.sodium);
+    const advancedValues = [
+        Number(totals.fiber) > 0
+            ? `<span>Lif <strong>${formatTemplateNutritionValue(totals.fiber)}g</strong></span>`
+            : '',
+        Number(totals.sugar) > 0
+            ? `<span>Şeker <strong>${formatTemplateNutritionValue(totals.sugar)}g</strong></span>`
+            : '',
+        saltEquivalent > 0
+            ? `<span>Tuz eşdeğeri <strong>${saltEquivalent}g</strong></span>`
+            : ''
+    ].filter(Boolean).join('');
+    previewEl.innerHTML = `
+        <div class="template-preview-heading">
+            <span>${isRecipe ? 'Tarifin' : 'Öğünün'} toplamı</span>
+            <strong>${Math.round(totals.kcal)} kcal</strong>
         </div>
-    `).join('');
+        <div class="template-preview-amount">
+            <small>Eklenen miktar: ${amountParts.join(' + ')}</small>
+        </div>
+        <div class="template-preview-macros" aria-label="Toplam makro değerleri">
+            <span class="template-preview-protein">P <strong>${formatTemplateNutritionValue(totals.protein)}g</strong></span>
+            <span class="template-preview-carb">K <strong>${formatTemplateNutritionValue(totals.carb)}g</strong></span>
+            <span class="template-preview-fat">Y <strong>${formatTemplateNutritionValue(totals.fat)}g</strong></span>
+        </div>
+        ${advancedValues ? `<div class="template-preview-advanced">${advancedValues}</div>` : ''}
+    `;
+}
+
+function renderTemplateFormItems() {
+    const listEl = document.getElementById('templateItemsList');
+    if (currentTemplateItems.length === 0) {
+        listEl.innerHTML = `
+            <div class="template-items-heading">
+                <div>
+                    <span>Listeye eklenenler</span>
+                    <strong>0 besin</strong>
+                </div>
+            </div>
+            <div class="template-empty-items">Arama alanından bir besin seçip miktarını yazarak listeye ekle.</div>
+        `;
+        renderTemplateNutritionPreview();
+        return;
+    }
+    listEl.innerHTML = `
+        <div class="template-items-heading">
+            <div>
+                <span>Listeye eklenenler</span>
+                <strong>${currentTemplateItems.length} besin</strong>
+            </div>
+            <small>Miktarları buradan değiştirebilirsin.</small>
+        </div>
+        <div class="template-form-items">
+            ${currentTemplateItems.map((item, i) => {
+                const unit = item.type === 'drink' ? 'ml' : 'g';
+                const initial = String(item.item_name || '?').trim().charAt(0).toLocaleUpperCase('tr-TR');
+                return `
+                    <div class="template-form-item" data-index="${i}">
+                        <span class="template-form-item-icon" aria-hidden="true">${escapeHtml(initial)}</span>
+                        <div class="template-form-item-identity">
+                            <strong>${escapeHtml(item.item_name)}</strong>
+                            <span>${item.type === 'drink' ? 'İçecek' : 'Yiyecek'}</span>
+                        </div>
+                        <label class="template-form-item-amount">
+                            <span>Miktar</span>
+                            <span class="template-amount-control">
+                                <input type="number" min="0.1" max="100000" step="0.1" value="${item.grams}" data-template-amount aria-label="${escapeHtml(item.item_name)} miktarı">
+                                <span>${unit}</span>
+                            </span>
+                        </label>
+                        <div class="template-form-item-nutrition">${getTemplateItemNutritionMarkup(item)}</div>
+                        <button class="template-form-item-remove" type="button" data-index="${i}" aria-label="${escapeHtml(item.item_name)} besinini listeden sil" title="Listeden sil">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>
+                        </button>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+
+    listEl.querySelectorAll('[data-template-amount]').forEach(input => {
+        input.addEventListener('input', () => {
+            const row = input.closest('.template-form-item');
+            const index = Number(row?.dataset.index);
+            const amount = Number(input.value);
+            if (!Number.isInteger(index) || !currentTemplateItems[index]) return;
+            if (!Number.isFinite(amount) || amount <= 0 || amount > 100000) return;
+
+            currentTemplateItems[index].grams = amount;
+            const nutritionEl = row.querySelector('.template-form-item-nutrition');
+            if (nutritionEl) {
+                nutritionEl.innerHTML = getTemplateItemNutritionMarkup(currentTemplateItems[index]);
+            }
+            renderTemplateNutritionPreview();
+        });
+        input.addEventListener('blur', () => {
+            const row = input.closest('.template-form-item');
+            const index = Number(row?.dataset.index);
+            const amount = Number(input.value);
+            if (!Number.isInteger(index) || !currentTemplateItems[index]) return;
+            if (!Number.isFinite(amount) || amount <= 0 || amount > 100000) {
+                input.value = String(currentTemplateItems[index].grams);
+            }
+        });
+    });
 
     listEl.querySelectorAll('.template-form-item-remove').forEach(btn => {
         btn.addEventListener('click', () => {
-            currentTemplateItems.splice(parseInt(btn.dataset.index), 1);
+            currentTemplateItems.splice(Number(btn.dataset.index), 1);
             renderTemplateFormItems();
         });
     });
 
-    if (previewEl) {
-        const totals = sumNutrition(currentTemplateItems.map(entry => {
-            const source = entry.type === 'food' ? foods : drinks;
-            const item = source.find(candidate => candidate.id === entry.item_id);
-            return item ? calculateLogNutrition(item, entry.grams) : null;
-        }).filter(Boolean));
-        previewEl.innerHTML = `
-            <span>Tarifin tamamı</span>
-            <strong>${Math.round(totals.kcal)} kcal</strong>
-            <span>P ${Math.round(totals.protein)}g · K ${Math.round(totals.carb)}g · Y ${Math.round(totals.fat)}g</span>
-        `;
-    }
+    renderTemplateNutritionPreview();
 }
 
 async function saveCurrentTemplate() {
     const name = document.getElementById('templateName').value.trim();
     const kind = document.getElementById('templateKind').value === 'recipe' ? 'recipe' : 'meal';
     const servings = Math.min(100, Math.max(1, Math.round(Number(document.getElementById('templateServings').value) || 1)));
-    const fallbackYield = currentTemplateItems.reduce((sum, item) => sum + Number(item.grams || 0), 0);
-    const yieldAmount = kind === 'recipe'
-        ? Number(document.getElementById('templateYield').value)
-        : 0;
+    const fallbackYield = sumIngredientAmounts(currentTemplateItems).combined;
+    const enteredYield = Number(document.getElementById('templateYield').value);
+    const yieldAmount = kind === 'recipe' && Number.isFinite(enteredYield) && enteredYield > 0
+        ? enteredYield
+        : fallbackYield;
     const yieldUnit = document.getElementById('templateYieldUnit').value === 'ml' ? 'ml' : 'g';
     const nutritionConfidence = document.getElementById('templateConfidence').value === 'estimated'
         ? 'estimated'
@@ -3456,7 +3878,7 @@ async function saveCurrentTemplate() {
     }
 
     const template = {
-        id: 'tpl_' + Date.now(),
+        id: editingTemplateId || ('tpl_' + Date.now()),
         name,
         kind,
         servings,
@@ -3468,10 +3890,16 @@ async function saveCurrentTemplate() {
         }))
     };
     const templates = loadTemplates();
-    templates.push(template);
+    const existingIndex = templates.findIndex(candidate => candidate.id === editingTemplateId);
+    if (existingIndex >= 0) {
+        templates[existingIndex] = template;
+    } else {
+        templates.push(template);
+    }
     const updatedAtMs = saveTemplates(templates);
     hideTemplateForm();
     renderTemplateList();
+    renderCatalog();
 
     const cloudSaved = await saveTemplatesToCloud(templates, updatedAtMs);
     if (!cloudSaved) {
@@ -3503,19 +3931,23 @@ function renderTplDropdown(items, searchTerm) {
 
     dropdown.querySelectorAll('.dropdown-item[data-index]').forEach(el => {
         el.addEventListener('click', () => {
-            const idx = parseInt(el.dataset.index);
-            const selected = tplDropdownItems[idx];
-            if (selected) {
-                tplSelectedItem = selected;
-                document.getElementById('tplSearchInput').value = getDisplayItemName(
-                    selected,
-                    document.querySelector('input[name="tplItemType"]:checked').value
-                );
-                dropdown.classList.remove('active');
-                document.getElementById('tplGramsInput').focus();
-            }
+            selectTplDropdownItem(parseInt(el.dataset.index, 10));
         });
     });
+}
+
+function selectTplDropdownItem(index = 0) {
+    const selected = tplDropdownItems[index];
+    if (!selected) return false;
+
+    const itemType = document.querySelector('input[name="tplItemType"]:checked').value;
+    tplSelectedItem = selected;
+    document.getElementById('tplSearchInput').value = getDisplayItemName(selected, itemType);
+    document.getElementById('tplDropdown').classList.remove('active');
+    const amountInput = document.getElementById('tplGramsInput');
+    amountInput.focus();
+    amountInput.select();
+    return true;
 }
 
 function closeTplDropdown() {
@@ -3865,6 +4297,214 @@ async function deleteCollectionDocsInBatches(collectionName) {
     return deletedCount;
 }
 
+function readDemoDataState() {
+    try {
+        return JSON.parse(localStorage.getItem(DEMO_DATA_STATE_KEY)) || null;
+    } catch {
+        return null;
+    }
+}
+
+function updateDemoDataStatus() {
+    const status = document.getElementById('demoDataStatus');
+    if (!status) return;
+    const state = readDemoDataState();
+    status.textContent = state?.batchId
+        ? 'Demo paket etkin · tek tuşla temizlenebilir.'
+        : 'Gerçek kayıtlarından ayrı işaretlenir.';
+}
+
+async function deleteDemoDocuments(collectionName) {
+    const snapshot = await getDocs(collection(db, collectionName));
+    const demoDocs = snapshot.docs.filter(entry => entry.data()?.is_demo === true);
+    const dates = demoDocs.map(entry => String(entry.data()?.date || '')).filter(Boolean);
+    let deleted = 0;
+
+    for (let start = 0; start < demoDocs.length; start += 400) {
+        const batch = writeBatch(db);
+        demoDocs.slice(start, start + 400).forEach(entry => {
+            batch.delete(entry.ref);
+            deleted += 1;
+        });
+        await batch.commit();
+    }
+
+    return { deleted, dates };
+}
+
+async function refreshDemoDataViews({ restoreLocalWeightBackup = null, removedWeightDates = [] } = {}) {
+    if (restoreLocalWeightBackup !== null) {
+        if (restoreLocalWeightBackup === '') {
+            localStorage.removeItem(WEIGHT_LOG_KEY);
+        } else {
+            localStorage.setItem(WEIGHT_LOG_KEY, restoreLocalWeightBackup);
+        }
+    } else if (removedWeightDates.length > 0) {
+        const removedDates = new Set(removedWeightDates);
+        saveWeightLogToLocal(loadWeightLogFromLocal().filter(entry => !removedDates.has(entry.date)));
+    }
+
+    const localWeights = loadWeightLogFromLocal();
+    const cloudWeights = await fetchWeightLogFromCloud();
+    const mergedWeights = new Map(cloudWeights.map(entry => [entry.date, entry]));
+    localWeights.forEach(entry => {
+        if (!mergedWeights.has(entry.date)) mergedWeights.set(entry.date, entry);
+    });
+    weightLogCache = [...mergedWeights.values()].sort((left, right) => left.date.localeCompare(right.date));
+    saveWeightLogToLocal(weightLogCache);
+
+    await refreshDailyLogViews();
+    renderWeightSection();
+    renderProgressInsights();
+    updateDemoDataStatus();
+}
+
+async function removeDemoData({ ask = true, silent = false } = {}) {
+    if (!db) throw new Error('Firebase bağlantısı kurulamadı.');
+    if (ask) {
+        const approved = await requestConfirmation({
+            title: 'Demo verilerini temizle',
+            message: 'Yalnızca oluşturulan 15 günlük demo paketi silinecek. Gerçek kayıtların korunacak.',
+            confirmLabel: 'Demoyu temizle',
+            danger: true
+        });
+        if (!approved) return false;
+    }
+
+    const state = readDemoDataState();
+    const [logResult, weightResult, settings] = await Promise.all([
+        deleteDemoDocuments('daily_logs'),
+        deleteDemoDocuments(WEIGHT_LOG_COLLECTION),
+        readSharedSettingsData()
+    ]);
+    const existingMeta = settings.daily_meta && typeof settings.daily_meta === 'object'
+        ? settings.daily_meta
+        : {};
+    const nextMeta = Object.fromEntries(
+        Object.entries(existingMeta).filter(([, meta]) => meta?.is_demo !== true)
+    );
+    if (Object.keys(nextMeta).length !== Object.keys(existingMeta).length) {
+        await writeSharedSettingsField('daily_meta', nextMeta);
+    }
+    [...dailyMetaCache.entries()].forEach(([date, meta]) => {
+        if (meta?.is_demo === true) dailyMetaCache.delete(date);
+    });
+
+    localStorage.removeItem(DEMO_DATA_STATE_KEY);
+    await refreshDemoDataViews({
+        restoreLocalWeightBackup: state
+            ? (typeof state.localWeightBackup === 'string' ? state.localWeightBackup : '')
+            : null,
+        removedWeightDates: weightResult.dates
+    });
+
+    const total = logResult.deleted + weightResult.deleted;
+    if (!silent) {
+        showError(
+            total > 0 ? `${total} demo kaydı temizlendi.` : 'Temizlenecek demo kaydı bulunamadı.',
+            'success'
+        );
+    }
+    return true;
+}
+
+async function createDemoData() {
+    if (!db) {
+        showError('Demo verisi için Firebase bağlantısı gerekli.');
+        return;
+    }
+    const approved = await requestConfirmation({
+        title: '15 günlük demo veri oluştur',
+        message: 'Gerçek kayıtların korunacak. Demo öğünler, kilo eğilimi ve antrenman günleri ayrı etiketle eklenecek.',
+        confirmLabel: 'Demoyu oluştur'
+    });
+    if (!approved) return;
+
+    const createButton = document.getElementById('createDemoDataBtn');
+    const removeButton = document.getElementById('removeDemoDataBtn');
+    if (createButton) createButton.disabled = true;
+    if (removeButton) removeButton.disabled = true;
+    showLoading();
+
+    try {
+        await removeDemoData({ ask: false, silent: true });
+        const localWeightBackup = localStorage.getItem(WEIGHT_LOG_KEY);
+        const dataset = buildDemoDataset({
+            today: getToday(),
+            profileWeight: Number(loadProfile().weight) || 100
+        });
+        const batch = writeBatch(db);
+
+        dataset.logs.forEach(entry => {
+            const item = getItemByIdOrName(entry.itemId, '');
+            if (!item) throw new Error(`Demo besini bulunamadı: ${entry.itemId}`);
+            const itemType = getItemType(item);
+            batch.set(doc(collection(db, 'daily_logs')), {
+                date: entry.date,
+                item_id: item.id,
+                item_name: item.name,
+                grams: entry.amount,
+                item_type: itemType,
+                unit: itemType === 'drink' ? 'ml' : 'g',
+                display_amount: entry.amount,
+                display_unit: itemType === 'drink' ? 'ml' : 'g',
+                meal_type: entry.mealType,
+                nutrition_confidence: inferNutritionConfidence(item),
+                nutrition_source: item.nutrition_source || 'Denge kataloğu',
+                schema_version: APP_SCHEMA_VERSION,
+                is_demo: true,
+                demo_batch_id: dataset.batchId,
+                demo_version: dataset.version,
+                ...calculateLogNutrition(item, entry.amount),
+                created_at: serverTimestamp()
+            });
+        });
+        dataset.weights.forEach(entry => {
+            batch.set(doc(collection(db, WEIGHT_LOG_COLLECTION)), {
+                ...entry,
+                is_demo: true,
+                demo_batch_id: dataset.batchId,
+                demo_version: dataset.version,
+                updated_at: serverTimestamp()
+            });
+        });
+        await batch.commit();
+
+        const settings = await readSharedSettingsData();
+        const existingMeta = settings.daily_meta && typeof settings.daily_meta === 'object'
+            ? settings.daily_meta
+            : {};
+        const nextMeta = { ...existingMeta };
+        Object.entries(dataset.dailyMeta).forEach(([date, meta]) => {
+            if (!nextMeta[date]) {
+                nextMeta[date] = { ...meta, updated_at: new Date() };
+                dailyMetaCache.set(date, nextMeta[date]);
+            }
+        });
+        await writeSharedSettingsField('daily_meta', nextMeta);
+
+        localStorage.setItem(DEMO_DATA_STATE_KEY, JSON.stringify({
+            batchId: dataset.batchId,
+            localWeightBackup,
+            createdAt: new Date().toISOString()
+        }));
+        await refreshDemoDataViews();
+        showError(`15 günlük demo oluşturuldu: ${dataset.logs.length} öğün kaydı ve 15 kilo ölçümü.`, 'success');
+    } catch (error) {
+        console.error('Demo data creation failed:', error);
+        try {
+            await removeDemoData({ ask: false, silent: true });
+        } catch (cleanupError) {
+            console.error('Demo rollback failed:', cleanupError);
+        }
+        showError('Demo verisi oluşturulamadı; eklenen demo kayıtları geri alındı.');
+    } finally {
+        hideLoading();
+        if (createButton) createButton.disabled = false;
+        if (removeButton) removeButton.disabled = false;
+    }
+}
+
 async function resetCloudData() {
     const warnings = [];
 
@@ -3959,8 +4599,9 @@ function resetLocalData() {
     currentTemplateItems = [];
     tplSelectedItem = null;
     tplDropdownItems = [];
-    catalogCategory = 'all';
+    catalogCategory = 'food';
     catalogSearchTerm = '';
+    catalogPage = 1;
     logsDateFilter = '';
     logsDateToFilter = '';
     launchMotivationMessage = null;
@@ -4049,8 +4690,8 @@ function refreshUiAfterReset() {
     if (gramsInput) gramsInput.placeholder = '100';
 
     document.querySelectorAll('.catalog-filter-btn').forEach((btn) => btn.classList.remove('active'));
-    const allCatalogBtn = document.querySelector('.catalog-filter-btn[data-category="all"]');
-    if (allCatalogBtn) allCatalogBtn.classList.add('active');
+    const foodCatalogBtn = document.querySelector('.catalog-filter-btn[data-category="food"]');
+    if (foodCatalogBtn) foodCatalogBtn.classList.add('active');
 
     closeDropdown();
     closeTplDropdown();
@@ -4124,11 +4765,25 @@ async function loadCustomItems() {
     try {
         const querySnapshot = await getDocs(collection(db, 'custom_items'));
         querySnapshot.forEach((docSnap) => {
-            const item = normalizeCustomItem(docSnap.id, docSnap.data());
+            const rawItem = docSnap.data();
+            if (Number(rawItem.catalog_generation) !== CUSTOM_CATALOG_GENERATION) return;
+            const item = normalizeCustomItem(docSnap.id, rawItem);
             if (!item) {
                 console.warn('Invalid custom item skipped:', docSnap.id);
                 return;
             }
+            const normalizedName = normalizeSearchText(item.name);
+            if (
+                normalizedName.includes('sut')
+                || normalizedName.includes('smoothie')
+                || normalizedName.includes('milk')
+            ) {
+                return;
+            }
+            const isCatalogDuplicate = [...foods, ...drinks].some(candidate =>
+                normalizeSearchText(candidate.name) === normalizedName
+            );
+            if (isCatalogDuplicate) return;
             if (item.type === 'food') {
                 foods.push(item);
             } else {
@@ -4376,6 +5031,453 @@ async function addProgressPhotoFromForm() {
     }
 }
 
+const ASSISTANT_UNIT_SHORT_LABELS = Object.freeze({
+    g: 'g',
+    ml: 'ml',
+    piece: 'adet',
+    slice: 'dilim',
+    portion: 'porsiyon',
+    glass: 'bardak',
+    tea_glass: 'çay bardağı',
+    cup: 'kupa',
+    tablespoon: 'yemek kaşığı'
+});
+
+function setAssistantStatus(state = 'ready', label = 'Hazır') {
+    const status = document.getElementById('assistantStatus');
+    if (!status) return;
+    status.dataset.state = state;
+    const labelElement = status.querySelector('span');
+    if (labelElement) labelElement.textContent = label;
+}
+
+function setAssistantBusy(isBusy, label = 'Çalışıyor') {
+    assistantBusy = Boolean(isBusy);
+    const buttons = [
+        document.getElementById('assistantSend'),
+        document.getElementById('assistantReviewBtn'),
+        document.getElementById('assistantMealSuggestionBtn')
+    ].filter(Boolean);
+    buttons.forEach(button => {
+        button.disabled = assistantBusy;
+    });
+    const sendLabel = document.querySelector('#assistantSend > span');
+    if (sendLabel) sendLabel.textContent = assistantBusy ? 'Bekle' : 'Çalıştır';
+    document.getElementById('assistantInput')?.setAttribute('aria-busy', String(assistantBusy));
+    setAssistantStatus(assistantBusy ? 'loading' : 'ready', assistantBusy ? label : 'Hazır');
+}
+
+function renderAssistantUsage() {
+    const element = document.getElementById('assistantUsage');
+    if (!element) return;
+    const usage = normalizeAiUsage(assistantUsageCache);
+    const modelLabel = usage.last_model.replace(/^gemini-/, '');
+    element.textContent = usage.requests > 0
+        ? `${usage.requests} istek · ${formatTokenCount(usage.total)} token`
+        : 'Henüz kullanım yok';
+    element.title = usage.requests > 0
+        ? `Giriş ${usage.input} · Çıkış ${usage.output + usage.thought} · Son istek ${usage.last_total}${modelLabel ? ` · ${modelLabel}` : ''}`
+        : 'Asistan kullanımı Firebase üzerinde saklanır.';
+}
+
+function updateAssistantUsage(usage = {}, model = '', mode = '') {
+    assistantUsageCache = addAiUsage(assistantUsageCache, usage, model, mode);
+    renderAssistantUsage();
+}
+
+async function persistAssistantUsage(usage = {}, model = '', mode = '') {
+    if (!db) return;
+    const request = normalizeAiUsage(usage);
+    const requestTotal = request.total || request.input + request.output + request.thought;
+    await setDoc(doc(db, SETTINGS_COLLECTION, SETTINGS_DOC_ID), {
+        ai_usage: {
+            requests: increment(1),
+            input: increment(request.input),
+            output: increment(request.output),
+            thought: increment(request.thought),
+            total: increment(requestTotal),
+            last_model: String(model || ''),
+            last_mode: String(mode || ''),
+            last_total: requestTotal,
+            updated_at: serverTimestamp()
+        },
+        updated_at: serverTimestamp()
+    }, { merge: true });
+}
+
+function getSafeHttpUrl(value) {
+    try {
+        const url = new URL(String(value || ''));
+        return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+    } catch {
+        return '';
+    }
+}
+
+function renderAssistantCommandResult({
+    state = 'idle',
+    title = 'Bekliyor',
+    text = '',
+    meta = '',
+    source = '',
+    undo = false
+} = {}) {
+    const container = document.getElementById('assistantCommandResult');
+    if (!container) return;
+    const sourceUrl = getSafeHttpUrl(source);
+    container.dataset.state = state;
+    container.innerHTML = `
+        <div>
+            <span>${escapeHtml(title)}</span>
+            ${text ? `<p>${escapeHtml(text)}</p>` : ''}
+            ${meta ? `<small>${escapeHtml(meta)}</small>` : ''}
+        </div>
+        <div class="assistant-result-actions">
+            ${sourceUrl ? `<a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">Kaynak</a>` : ''}
+            ${undo ? '<button type="button" id="assistantUndoLast">Geri al</button>' : ''}
+        </div>
+    `;
+    if (undo) {
+        container.querySelector('#assistantUndoLast')?.addEventListener('click', undoLastAssistantAdd);
+    }
+}
+
+function renderAssistantQuickResult(text, type = 'review') {
+    const container = document.getElementById('assistantReviewResult');
+    if (!container) return;
+    container.innerHTML = `
+        <div class="assistant-review-summary" data-type="${type}">
+            ${escapeHtml(text || 'Sonuç üretilemedi.')}
+        </div>
+    `;
+}
+
+function renderAssistantLoading(target = 'command', label = 'Çalışıyor…') {
+    if (target === 'quick') {
+        const container = document.getElementById('assistantReviewResult');
+        if (container) {
+            container.innerHTML = `<div class="assistant-review-loading"><span></span><p>${escapeHtml(label)}</p></div>`;
+        }
+        return;
+    }
+    renderAssistantCommandResult({
+        state: 'loading',
+        title: 'İşleniyor',
+        text: label
+    });
+}
+
+function getAssistantCatalog() {
+    return [
+        ...getItemsByType('food').map(item => ({ ...item, type: 'food' })),
+        ...getItemsByType('drink').map(item => ({ ...item, type: 'drink' }))
+    ];
+}
+
+function buildAssistantCompactContext() {
+    const profile = loadProfile();
+    const dayTargets = calculateDayTypeEnergyTargets(TARGETS.kcal, profile.trainingDays);
+    const dates = getLast7Days();
+    const days = dates.map((date, index) => {
+        const logs = recentLogs.filter(log => log.date === date);
+        const totals = sumLogs(logs);
+        return {
+            offset: index - (dates.length - 1),
+            kcal: totals.kcal,
+            targetKcal: getCalorieTargetForDate(date),
+            protein: totals.protein,
+            carb: totals.carb,
+            fat: totals.fat,
+            fiber: totals.fiber,
+            sugar: totals.sugar,
+            salt: sodiumMgToSaltGrams(totals.sodium),
+            trained: dailyMetaCache.get(date)?.trained === true,
+            count: logs.length
+        };
+    });
+    const sortedWeights = [...weightLogCache]
+        .filter(entry => Number.isFinite(Number(entry?.weight)))
+        .sort((left, right) => left.date.localeCompare(right.date));
+    const weightAverages = getWeightAverages(sortedWeights);
+    const recentWeights = sortedWeights.slice(-7);
+    const currentWeight = Number(recentWeights.at(-1)?.weight) || Number(profile.weight) || 0;
+    const weeklyChange = recentWeights.length >= 2
+        ? currentWeight - Number(recentWeights[0].weight)
+        : 0;
+    const macroTargets = getMacroTargetsForDate(getToday());
+
+    return buildCompactAiContext({
+        profile,
+        targets: {
+            restKcal: dayTargets.restDayKcal,
+            trainingKcal: dayTargets.trainingDayKcal,
+            ...macroTargets
+        },
+        days,
+        weight: {
+            current: currentWeight,
+            avg7: weightAverages[7],
+            avg14: weightAverages[14],
+            avg30: weightAverages[30],
+            weeklyChange
+        }
+    });
+}
+
+async function requestAssistant(payload) {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 28_000);
+    try {
+        const response = await fetch(AI_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data?.error || 'Asistan işlemi tamamlanamadı.');
+        return data;
+    } catch (error) {
+        if (error?.name === 'AbortError') {
+            throw new Error('İşlem zaman aşımına uğradı.');
+        }
+        if (error instanceof TypeError) {
+            throw new Error('Vercel asistan servisine ulaşılamadı.');
+        }
+        throw error;
+    } finally {
+        window.clearTimeout(timer);
+    }
+}
+
+function buildAssistantCatalogLog(item, resultItem, date, mealType) {
+    const itemType = getItemType(item);
+    const options = getUnitOptions(item, itemType);
+    const requestedUnit = options.some(option => option.value === resultItem.unit)
+        ? resultItem.unit
+        : options[0].value;
+    const displayAmount = Number(resultItem.amount);
+    const baseAmount = convertToBaseAmount(displayAmount, requestedUnit, item, itemType);
+    if (!baseAmount) return null;
+    return {
+        date,
+        item_id: item.id,
+        item_name: item.name,
+        grams: baseAmount,
+        item_type: itemType,
+        unit: itemType === 'drink' ? 'ml' : 'g',
+        display_amount: displayAmount,
+        display_unit: requestedUnit,
+        meal_type: mealType,
+        nutrition_confidence: inferNutritionConfidence(item),
+        nutrition_source: item.nutrition_source || 'Denge kataloğu',
+        schema_version: APP_SCHEMA_VERSION,
+        ...calculateLogNutrition(item, baseAmount),
+        created_at: serverTimestamp()
+    };
+}
+
+function buildAssistantExternalLog(resultItem, date, mealType) {
+    const amount = Number(resultItem?.amount);
+    const nutrition = resultItem?.nutrition;
+    if (
+        !resultItem?.name
+        || !Number.isFinite(amount)
+        || amount <= 0
+        || !nutrition
+        || !Number.isFinite(Number(nutrition.kcal))
+    ) {
+        return null;
+    }
+    const itemType = resultItem.type === 'drink' ? 'drink' : 'food';
+    return {
+        date,
+        item_id: `ai_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        item_name: String(resultItem.name).slice(0, 160),
+        grams: amount,
+        item_type: itemType,
+        unit: itemType === 'drink' ? 'ml' : 'g',
+        display_amount: amount,
+        display_unit: resultItem.unit || (itemType === 'drink' ? 'ml' : 'g'),
+        meal_type: mealType,
+        nutrition_confidence: 'estimated',
+        nutrition_source: String(resultItem.source || 'Gemini web tahmini').slice(0, 1000),
+        ai_estimated: true,
+        ai_confidence: Math.min(1, Math.max(0, Number(resultItem.confidence) || 0)),
+        schema_version: APP_SCHEMA_VERSION,
+        kcal: Math.max(0, Math.round(Number(nutrition.kcal) || 0)),
+        protein: Math.max(0, Number(nutrition.protein) || 0),
+        carb: Math.max(0, Number(nutrition.carb) || 0),
+        fat: Math.max(0, Number(nutrition.fat) || 0),
+        fiber: Math.max(0, Number(nutrition.fiber) || 0),
+        sugar: Math.max(0, Number(nutrition.sugar) || 0),
+        sodium: Math.max(0, Number(nutrition.sodium) || 0),
+        created_at: serverTimestamp()
+    };
+}
+
+async function commitAssistantAdd(result) {
+    const mealType = MEAL_LABELS[result?.mealType] ? result.mealType : 'snack';
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(String(result?.date || ''))
+        ? result.date
+        : getToday();
+    const entries = (Array.isArray(result?.items) ? result.items : []).map(resultItem => {
+        if (resultItem.kind === 'catalog') {
+            const item = getItemByIdOrName(resultItem.id, resultItem.name);
+            return item ? buildAssistantCatalogLog(item, resultItem, date, mealType) : null;
+        }
+        return buildAssistantExternalLog(resultItem, date, mealType);
+    }).filter(Boolean);
+    if (entries.length === 0) throw new Error('Eklenebilecek net bir besin bulunamadı.');
+
+    const batch = writeBatch(db);
+    const refs = entries.map(entry => doc(collection(db, 'daily_logs')));
+    entries.forEach((entry, index) => batch.set(refs[index], entry));
+    await batch.commit();
+    lastAssistantLogIds = refs.map(ref => ref.id);
+    await refreshDailyLogViews();
+
+    const totals = sumLogs(entries);
+    const externalItem = (result.items || []).find(item => item.kind === 'external');
+    const names = entries.map(entry => entry.item_name).join(', ');
+    const portionText = entries.length === 1
+        ? `${entries[0].display_amount} ${ASSISTANT_UNIT_SHORT_LABELS[entries[0].display_unit] || entries[0].display_unit}`
+        : `${entries.length} besin`;
+    renderAssistantCommandResult({
+        state: 'success',
+        title: 'Günlüğe eklendi',
+        text: names,
+        meta: `${MEAL_LABELS[mealType]} · ${portionText} · ${Math.round(totals.kcal)} kcal${externalItem ? ' · tahmini' : ''}`,
+        source: externalItem?.source,
+        undo: true
+    });
+    showError(`${entries.length} besin ${MEAL_LABELS[mealType]} öğününe eklendi.`, 'success');
+}
+
+async function undoLastAssistantAdd() {
+    const ids = [...lastAssistantLogIds];
+    if (ids.length === 0) return;
+    lastAssistantLogIds = [];
+    try {
+        await Promise.all(ids.map(id => deleteDoc(doc(db, 'daily_logs', id))));
+        await refreshDailyLogViews();
+        renderAssistantCommandResult({
+            state: 'idle',
+            title: 'Geri alındı',
+            text: 'Son AI kaydı günlükten kaldırıldı.'
+        });
+        showError('Son AI kaydı geri alındı.', 'success');
+    } catch (error) {
+        lastAssistantLogIds = ids;
+        console.error('Assistant undo failed:', error);
+        showError('Kayıt geri alınamadı.');
+    }
+}
+
+async function runAssistantCommand(rawMessage = '', forcedMode = '') {
+    if (assistantBusy) return;
+    const message = String(rawMessage || '').trim();
+    const mode = forcedMode || detectAiCommandMode(message);
+    if (mode === 'add' && !message) {
+        showError('Çalıştırılacak komutu yaz.');
+        document.getElementById('assistantInput')?.focus();
+        return;
+    }
+
+    setAssistantBusy(true, mode === 'add' ? 'Besin aranıyor' : mode === 'suggest' ? 'Öğün hazırlanıyor' : 'Değerlendiriliyor');
+    renderAssistantLoading(mode === 'add' ? 'command' : 'quick', mode === 'add' ? 'Besin bulunup günlüğe ekleniyor…' : 'Kısa sonuç hazırlanıyor…');
+    let failed = false;
+
+    try {
+        const payload = {
+            mode,
+            today: getToday(),
+            hour: new Date().getHours()
+        };
+        if (mode === 'add') {
+            const candidates = buildAiCatalogCandidates(getAssistantCatalog(), message, 14);
+            payload.message = message;
+            payload.candidates = compactAiCandidates(candidates);
+        } else {
+            payload.context = buildAssistantCompactContext();
+        }
+
+        const result = await requestAssistant(payload);
+        updateAssistantUsage(result.usage, result.model, mode);
+        try {
+            await persistAssistantUsage(result.usage, result.model, mode);
+        } catch (usageError) {
+            console.warn('Assistant usage could not be persisted:', usageError);
+        }
+        if (mode === 'add') {
+            if (result.action !== 'add' || !Array.isArray(result.items) || result.items.length === 0) {
+                renderAssistantCommandResult({
+                    state: 'error',
+                    title: 'Eklenemedi',
+                    text: result.text || 'Besin için yeterli bilgi bulunamadı.'
+                });
+                return;
+            }
+            await commitAssistantAdd(result);
+            const input = document.getElementById('assistantInput');
+            if (input) input.value = '';
+        } else {
+            renderAssistantQuickResult(result.text, mode);
+        }
+    } catch (error) {
+        failed = true;
+        const messageText = String(error?.message || 'Asistan işlemi tamamlanamadı.');
+        if (mode === 'add') {
+            renderAssistantCommandResult({
+                state: 'error',
+                title: 'İşlem başarısız',
+                text: messageText
+            });
+        } else {
+            renderAssistantQuickResult(messageText, 'error');
+        }
+        console.error('Assistant command failed:', error);
+        showError(messageText);
+    } finally {
+        setAssistantBusy(false);
+        if (failed) setAssistantStatus('error', 'Bağlantı sorunu');
+    }
+}
+
+function initializeAssistantUI() {
+    const input = document.getElementById('assistantInput');
+    renderAssistantUsage();
+    document.getElementById('assistantHeaderBtn')?.addEventListener('click', () => {
+        if (typeof window.switchTab === 'function') window.switchTab('assistant');
+        window.setTimeout(() => input?.focus(), 120);
+    });
+    document.getElementById('assistantSend')?.addEventListener('click', () => {
+        void runAssistantCommand(input?.value || '');
+    });
+    input?.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
+        event.preventDefault();
+        void runAssistantCommand(event.currentTarget.value);
+    });
+    document.querySelectorAll('[data-assistant-prompt]').forEach(button => {
+        button.addEventListener('click', () => {
+            input.value = button.dataset.assistantPrompt || '';
+            input.focus();
+        });
+    });
+    document.querySelectorAll('[data-assistant-action]').forEach(button => {
+        button.addEventListener('click', () => {
+            void runAssistantCommand('', button.dataset.assistantAction);
+        });
+    });
+    document.getElementById('assistantReviewBtn')?.addEventListener('click', () => {
+        void runAssistantCommand('', 'review');
+    });
+    document.getElementById('assistantMealSuggestionBtn')?.addEventListener('click', () => {
+        void runAssistantCommand('', 'suggest');
+    });
+}
+
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
     if (pendingUiMessage) {
@@ -4402,7 +5504,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Set date display
     const today = getToday();
+    dashboardDate = today;
     document.getElementById('dateDisplay').textContent = formatDate(today);
+    syncDashboardDateControls();
+    document.getElementById('dashboardDate')?.addEventListener('change', event => {
+        void setDashboardDate(event.currentTarget.value);
+    });
+    document.getElementById('dashboardPrevDate')?.addEventListener('click', () => {
+        void setDashboardDate(shiftDate(getDashboardDate(), -1));
+    });
+    document.getElementById('dashboardNextDate')?.addEventListener('click', () => {
+        void setDashboardDate(shiftDate(getDashboardDate(), 1));
+    });
+    document.getElementById('dashboardTodayDate')?.addEventListener('click', () => {
+        void setDashboardDate(today);
+    });
     const logDateInput = document.getElementById('logDate');
     if (logDateInput) logDateInput.value = today;
     const logsDateFilterInput = document.getElementById('logsDateFilter');
@@ -4417,6 +5533,7 @@ document.addEventListener('DOMContentLoaded', () => {
         logsDateFilterField.classList.toggle('is-empty', !logsDateFilterInput.value);
     };
     syncLogsDateFilterPlaceholder();
+    initializeAssistantUI();
 
     // Arayüzü ağ isteklerini bekletmeden kullanılabilir hale getir.
     updateSummary();
@@ -4434,7 +5551,10 @@ document.addEventListener('DOMContentLoaded', () => {
             renderCatalog();
             renderTemplateList();
         }),
-        initializeTemplates().then(renderTemplateList),
+        initializeTemplates().then(() => {
+            renderTemplateList();
+            renderCatalog();
+        }),
         loadSettingsFromCloud(),
         initializeWeightLog(),
         loadMeasurements(),
@@ -4589,8 +5709,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (e.key === 'Enter' && isOpen) {
             e.preventDefault();
-            if (currentDropdownItems[currentDropdownIndex]) {
-                selectItem(currentDropdownItems[currentDropdownIndex], itemType);
+            const selectedIndex = currentDropdownIndex >= 0 ? currentDropdownIndex : 0;
+            if (currentDropdownItems[selectedIndex]) {
+                selectItem(currentDropdownItems[selectedIndex], itemType);
             }
         }
 
@@ -4624,9 +5745,14 @@ document.addEventListener('DOMContentLoaded', () => {
             showError('Günlüğe eklenecek tarihi seç.');
             return;
         }
-        const queuedSnapshot = [...pendingLogItems];
+        const mealType = await requestMealSelection({
+            itemLabel: `${pendingLogItems.length} besin`,
+            suggestedMeal: document.getElementById('mealType')?.value || 'snack'
+        });
+        if (!mealType) return;
+        const queuedSnapshot = pendingLogItems.map(entry => ({ ...entry, meal_type: mealType }));
         try {
-            await addLogBatch(queuedSnapshot, logDate);
+            await addLogBatch(queuedSnapshot, logDate, mealType);
             queuedSnapshot.forEach(entry => {
                 savePortionUsage(
                     entry.item,
@@ -4649,7 +5775,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('addButton').addEventListener('click', async () => {
         const itemType = document.querySelector('input[name="itemType"]:checked').value;
         const logDate = getSelectedLogDate();
-        const mealType = document.getElementById('mealType')?.value || 'snack';
 
         if (!logDate) {
         showError('Günlüğe eklenecek tarihi seç.');
@@ -4679,6 +5804,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 showError('Geçerli bir miktar gir.');
                 return;
             }
+            const mealType = await requestMealSelection({
+                itemLabel: customName,
+                suggestedMeal: document.getElementById('mealType')?.value || 'snack'
+            });
+            if (!mealType) return;
 
             // Create custom item object
             const customItem = {
@@ -4696,6 +5826,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 nutrition_confidence: ['verified', 'personal', 'estimated'].includes(customConfidence)
                     ? customConfidence
                     : 'verified',
+                catalog_generation: CUSTOM_CATALOG_GENERATION,
                 schema_version: APP_SCHEMA_VERSION
             };
 
@@ -4746,6 +5877,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 showError('Geçerli bir miktar gir.');
                 return;
             }
+            const mealType = await requestMealSelection({
+                itemLabel: selectedItem.name,
+                suggestedMeal: document.getElementById('mealType')?.value || 'snack'
+            });
+            if (!mealType) return;
 
             await addLog(selectedItem, portion.baseAmount, logDate, mealType, {
                 amount: portion.displayAmount,
@@ -4756,9 +5892,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Close dropdown when clicking outside
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('.form-group')) {
-            closeDropdown();
-        }
+        if (!e.target.closest('#searchInput, #dropdown')) closeDropdown();
+        if (!e.target.closest('#tplSearchInput, #tplDropdown')) closeTplDropdown();
     });
 
     // Kayıt düzenleme modalı
@@ -4796,6 +5931,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.target === confirmModal) settleConfirmation(false);
     });
 
+    const mealPickerModal = document.getElementById('mealPickerModal');
+    document.getElementById('closeMealPicker').addEventListener('click', () => settleMealSelection(null));
+    document.getElementById('cancelMealPicker').addEventListener('click', () => settleMealSelection(null));
+    mealPickerModal.querySelectorAll('[data-meal-choice]').forEach(button => {
+        button.addEventListener('click', () => settleMealSelection(button.dataset.mealChoice));
+    });
+    mealPickerModal.addEventListener('click', event => {
+        if (event.target === mealPickerModal) settleMealSelection(null);
+    });
+
     document.getElementById('dashboardTrainingToggle').addEventListener('click', toggleTodayTraining);
 
     // Settings Modal
@@ -4806,10 +5951,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveSettingsBtn = document.getElementById('saveSettings');
     const resetAllDataBtn = document.getElementById('resetAllDataBtn');
     const importJsonInput = document.getElementById('importJsonInput');
+    const settingsAccordions = [...settingsModal.querySelectorAll('.settings-accordion')];
+    const openSettingsAccordion = (target) => {
+        settingsAccordions.forEach(section => {
+            section.open = section === target;
+        });
+        target?.scrollIntoView({ block: 'nearest' });
+    };
+
+    settingsAccordions.forEach(section => {
+        section.addEventListener('toggle', () => {
+            if (!section.open) return;
+            settingsAccordions.forEach(other => {
+                if (other !== section) other.open = false;
+            });
+        });
+    });
 
     document.getElementById('exportJsonBtn').addEventListener('click', exportJsonBackup);
     document.getElementById('exportCsvBtn').addEventListener('click', exportLogsCsv);
     document.getElementById('importJsonBtn').addEventListener('click', () => importJsonInput.click());
+    document.getElementById('createDemoDataBtn').addEventListener('click', () => {
+        void createDemoData();
+    });
+    document.getElementById('removeDemoDataBtn').addEventListener('click', () => {
+        void removeDemoData().catch(error => {
+            console.error('Demo data cleanup failed:', error);
+            showError('Demo verileri temizlenemedi.');
+        });
+    });
     importJsonInput.addEventListener('change', async () => {
         const [file] = importJsonInput.files || [];
         if (file) await restoreJsonBackup(file);
@@ -4847,9 +6017,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (prof.goalMode) document.getElementById('profileGoalMode').value = prof.goalMode;
         if (prof.targetWeight) document.getElementById('profileTargetWeight').value = prof.targetWeight;
         updateDayTypeTargetFields();
+        updateDemoDataStatus();
 
         // Öneri kutusunu gizle (yeniden hesaplanması gerekir)
         document.getElementById('goalRecommendation').style.display = 'none';
+        if (!settingsAccordions.some(section => section.open)) {
+            openSettingsAccordion(settingsAccordions[0]);
+        }
 
         settingsModal.classList.add('active');
         window.requestAnimationFrame(() => closeSettings.focus());
@@ -4861,6 +6035,7 @@ document.addEventListener('DOMContentLoaded', () => {
     saveSettingsBtn.addEventListener('click', async () => {
         const macroPreferencesInput = getMacroPreferencesFormState();
         if (!areMacroPreferencesValid(macroPreferencesInput)) {
+            openSettingsAccordion(settingsAccordions[1]);
             showError('Protein, karbonhidrat ve yağ oranlarının toplamı %100 olmalı.');
             return;
         }
@@ -4872,6 +6047,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ...calculatedMacros
         };
         if (!areTargetsValid(targetInput)) {
+            openSettingsAccordion(settingsAccordions[1]);
             showError('Kalori ve makro hedeflerini izin verilen aralıklarda gir.');
             return;
         }
@@ -4957,7 +6133,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape') return;
-        if (confirmModal.classList.contains('active')) {
+        if (mealPickerModal.classList.contains('active')) {
+            settleMealSelection(null);
+        } else if (confirmModal.classList.contains('active')) {
             settleConfirmation(false);
         } else if (moveMealModal.classList.contains('active')) {
             closeMoveMealModal();
@@ -5160,25 +6338,44 @@ document.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('.catalog-filter-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             catalogCategory = btn.dataset.category;
+            catalogPage = 1;
             renderCatalog();
         });
     });
 
-    document.getElementById('catalogSearch').addEventListener('input', (e) => {
+    const catalogSearchInput = document.getElementById('catalogSearch');
+    catalogSearchInput.addEventListener('input', (e) => {
         catalogSearchTerm = e.target.value.trim();
+        catalogPage = 1;
         renderCatalog();
+    });
+    catalogSearchInput.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') return;
+        const firstResult = document.querySelector('#catalogList .catalog-item');
+        if (!firstResult) return;
+        event.preventDefault();
+        firstResult.click();
     });
 
     // --- Template Event Listeners ---
-    document.getElementById('createTemplateBtn').addEventListener('click', showTemplateForm);
+    document.getElementById('createTemplateBtn').addEventListener('click', () => showTemplateForm());
     document.getElementById('backToTemplates').addEventListener('click', hideTemplateForm);
     document.getElementById('saveTemplate').addEventListener('click', saveCurrentTemplate);
     document.getElementById('templateKind').addEventListener('change', event => {
         const isRecipe = event.target.value === 'recipe';
         document.getElementById('recipeSettings').hidden = !isRecipe;
+        document.getElementById('recipeQuickIngredients').hidden = !isRecipe;
         document.querySelector('label[for="templateName"]').textContent = isRecipe ? 'Tarif adı' : 'Öğün adı';
-        document.getElementById('saveTemplate').textContent = isRecipe ? 'Tarifi kaydet' : 'Öğünü kaydet';
+        document.getElementById('templateFormTitle').textContent = editingTemplateId
+            ? (isRecipe ? 'Tarifi düzenle' : 'Kayıtlı öğünü düzenle')
+            : 'Yeni öğün veya tarif oluştur';
+        document.getElementById('saveTemplate').textContent = editingTemplateId
+            ? 'Değişiklikleri kaydet'
+            : (isRecipe ? 'Tarifi kaydet' : 'Öğünü kaydet');
+        renderTemplateNutritionPreview();
     });
+    document.getElementById('templateYield').addEventListener('input', renderTemplateNutritionPreview);
+    document.getElementById('templateYieldUnit').addEventListener('change', renderTemplateNutritionPreview);
 
     // Template search
     const tplSearchInput = document.getElementById('tplSearchInput');
@@ -5187,9 +6384,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const term = e.target.value.trim();
         tplSelectedItem = null;
         if (!term) { closeTplDropdown(); return; }
-        const items = itemType === 'food' ? foods : drinks;
-        const filtered = items.filter(i => i.name.toLowerCase().includes(term.toLowerCase())).slice(0, 15);
+        const filtered = filterItems(term, itemType, { includeRecipes: false });
         renderTplDropdown(filtered, term);
+    });
+    tplSearchInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closeTplDropdown();
+            return;
+        }
+        if (event.key !== 'Enter') return;
+
+        event.preventDefault();
+        const term = event.currentTarget.value.trim();
+        if (!document.getElementById('tplDropdown').classList.contains('active') && term) {
+            const itemType = document.querySelector('input[name="tplItemType"]:checked').value;
+            renderTplDropdown(filterItems(term, itemType, { includeRecipes: false }), term);
+        }
+        selectTplDropdownItem(0);
     });
 
     // Template item type change
@@ -5215,17 +6426,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!grams || grams <= 0) { showError('Geçerli bir porsiyon gir.'); return; }
         const itemType = document.querySelector('input[name="tplItemType"]:checked').value;
 
-        currentTemplateItems.push({
-            item_id: tplSelectedItem.id,
-            item_name: tplSelectedItem.name,
-            grams,
-            type: itemType
-        });
+        addItemToCurrentTemplate(tplSelectedItem, itemType, grams);
 
         tplSelectedItem = null;
         document.getElementById('tplSearchInput').value = '';
         document.getElementById('tplGramsInput').value = '';
         closeTplDropdown();
-        renderTemplateFormItems();
+    });
+    document.getElementById('tplGramsInput').addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        document.getElementById('addItemToTemplate').click();
+    });
+
+    document.querySelectorAll('[data-quick-item]').forEach(button => {
+        button.addEventListener('click', () => {
+            const item = foods.find(candidate => candidate.id === button.dataset.quickItem);
+            const amount = Number(button.dataset.quickAmount);
+            if (!addItemToCurrentTemplate(item, 'food', amount)) {
+                showError('Hızlı malzeme listeye eklenemedi.');
+            }
+        });
     });
 });

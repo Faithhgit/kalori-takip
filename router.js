@@ -14,6 +14,9 @@ const PAGE_META = {
     catalog: {
         title: 'Besinler'
     },
+    assistant: {
+        title: 'Asistan'
+    },
     health: {
         title: 'Sağlık'
     }
@@ -23,7 +26,7 @@ const DEFAULT_PAGE = 'dashboard';
 const CATALOG_VIEWS = new Set(['foods', 'templates']);
 
 function setCatalogView(viewName) {
-    const nextView = CATALOG_VIEWS.has(viewName) ? viewName : 'foods';
+    const nextView = CATALOG_VIEWS.has(viewName) ? viewName : 'templates';
     document.body.dataset.catalogView = nextView;
 
     document.querySelectorAll('[data-catalog-view]').forEach(button => {
@@ -76,6 +79,7 @@ function renderPage(pageName, options = {}) {
     document.title = `${meta.title} — Denge`;
 
     if (nextPage === 'catalog') {
+        setCatalogView('templates');
         if (typeof window.renderCatalog === 'function') window.renderCatalog();
         if (typeof window.renderTemplateList === 'function') window.renderTemplateList();
     }
@@ -97,6 +101,6 @@ window.setCatalogView = setCatalogView;
 document.querySelectorAll('[data-catalog-view]').forEach(button => {
     button.addEventListener('click', () => setCatalogView(button.dataset.catalogView));
 });
-setCatalogView(document.body.dataset.catalogView || 'foods');
+setCatalogView(document.body.dataset.catalogView || 'templates');
 window.addEventListener('hashchange', () => renderPage(getPageFromLocation()));
 renderPage(getPageFromLocation(), { scroll: false });

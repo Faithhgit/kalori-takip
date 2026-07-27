@@ -25,5 +25,80 @@ assert.match(html, /name="viewport"/, 'Mobil viewport etiketi bulunmalı.');
 assert.match(css, /env\(safe-area-inset-bottom\)/, 'Mobil güvenli alan desteği bulunmalı.');
 assert.match(css, /:focus-visible/, 'Klavye odak stili bulunmalı.');
 assert.match(html, /aria-live="polite"/, 'Dinamik durum mesajları erişilebilir olmalı.');
+assert.match(html, /id="mealPickerModal"/, 'Öğün seçim penceresi bulunmalı.');
+assert.equal(
+    [...html.matchAll(/data-meal-choice="(breakfast|lunch|dinner|snack)"/g)].length,
+    4,
+    'Dört öğün seçeneğinin tamamı bulunmalı.'
+);
+assert.ok(
+    [...app.matchAll(/await requestMealSelection\(/g)].length >= 4,
+    'Günlüğe ekleme yolları öğün seçimini istemeli.'
+);
+assert.equal(
+    [...html.matchAll(/class="catalog-filter-btn(?: active)?"/g)].length,
+    2,
+    'Besin kütüphanesinde yalnızca yiyecek ve içecek filtreleri bulunmalı.'
+);
+assert.match(
+    html,
+    /class="catalog-view-btn active"[^>]+data-catalog-view="templates"/,
+    'Besinler sayfasında öğünler ve tarifler ilk görünüm olmalı.'
+);
+assert.match(css, /scrollbar-width:\s*none/, 'Kaydırma çubukları görünmeden kaydırma desteklenmeli.');
+assert.equal(
+    [...html.matchAll(/<details class="settings-accordion[^"]*"/g)].length,
+    3,
+    'Ayarlar profil, günlük hedefler ve veriler olarak üç bölüme ayrılmalı.'
+);
+assert.match(
+    css,
+    /\.main-content \.summary-card\[data-page="dashboard"\][\s\S]*grid-column:\s*1\s*\/\s*13/,
+    'Enerji özeti masaüstünde tam genişlik kullanmalı.'
+);
+for (const id of ['calorieRingStatus', 'dailySugarValue', 'dailySaltValue', 'templateNutritionPreview']) {
+    assert.ok(ids.includes(id), `${id} arayüz alanı bulunmalı.`);
+}
+for (const id of ['createDemoDataBtn', 'removeDemoDataBtn', 'demoDataStatus']) {
+    assert.ok(ids.includes(id), `${id} demo veri kontrolü bulunmalı.`);
+}
+for (const id of [
+    'assistant-tab',
+    'assistantInput',
+    'assistantSend',
+    'assistantCommandResult',
+    'assistantUsage',
+    'assistantReviewBtn',
+    'assistantMealSuggestionBtn',
+    'assistantReviewResult'
+]) {
+    assert.ok(ids.includes(id), `${id} asistan arayüz alanı bulunmalı.`);
+}
+assert.match(
+    html,
+    /data-tab="assistant"/,
+    'Asistan masaüstü navigasyonunda erişilebilir olmalı.'
+);
+assert.match(
+    app,
+    /sumIngredientAmounts\(currentTemplateItems\)\.combined/,
+    'Boş tarif verimi malzeme miktarlarının toplamını kullanmalı.'
+);
+
+for (const id of [
+    'dashboardDate',
+    'dashboardPrevDate',
+    'dashboardNextDate',
+    'dashboardTodayDate',
+    'summaryDateLabel',
+    'summaryProgressDate'
+]) {
+    assert.ok(ids.includes(id), `${id} özet tarih kontrolü bulunmalı.`);
+}
+assert.match(
+    app,
+    /ai_usage:\s*\{[\s\S]*requests:\s*increment\(1\)/,
+    'Asistan token kullanımı Firebase üzerinde biriktirilmeli.'
+);
 
 console.log('ui structure audit passed');
