@@ -120,7 +120,48 @@ assert.ok(
     'All diary add flows should use the shared success notification.'
 );
 assert.match(css, /\.toast-action\s*\{/, 'The success notification should provide a diary shortcut.');
-assert.match(html, /styles\.css\?v=55/, 'The current stylesheet version should bypass stale app caches.');
-assert.match(html, /app\.js\?v=55/, 'The current application version should bypass stale app caches.');
+assert.match(html, /styles\.css\?v=59/, 'The current stylesheet version should bypass stale app caches.');
+assert.match(html, /router\.js\?v=59/, 'The current router version should bypass stale app caches.');
+assert.match(html, /app\.js\?v=59/, 'The current application version should bypass stale app caches.');
+assert.match(html, /class="notification-stack"/, 'Recent notifications should render in a shared stack.');
+assert.match(css, /\.app-toast:nth-child\(3\)/, 'The notification stack should visually retain three items.');
+assert.match(css, /\.meal-log-grid\s*\{/, 'Diary entries should use the responsive meal card grid.');
+assert.match(css, /\.add-step-heading\s*\{/, 'The food add flow should expose clear visual steps.');
+assert.match(css, /\.dashboard-date-nav \.dashboard-today-btn\[hidden\]/, 'The iPhone date controls should respect the hidden today action.');
+for (const token of [
+    '--ui-font-meta',
+    '--ui-font-body',
+    '--ui-font-card',
+    '--ui-radius-control',
+    '--ui-radius-card',
+    '--ui-control-height'
+]) {
+    assert.ok(css.includes(token), `${token} shared design token should exist.`);
+}
+assert.match(
+    css,
+    /body:not\(\[data-page="dashboard"\]\) \.main-content\s*\{[\s\S]*?background:\s*transparent;/,
+    'Non-dashboard pages should not add a second visual shell around their primary cards.'
+);
+assert.match(
+    css,
+    /\.meal-log-grid > \.log-item:only-child/,
+    'A single diary item should fill its meal row instead of leaving a blank column.'
+);
+assert.match(
+    css,
+    /body > \.tabs-container\.is-mobile-docked[\s\S]*?position:\s*fixed\s*!important/,
+    'Mobile navigation should be docked directly to the viewport.'
+);
+assert.match(
+    css,
+    /\.calorie-ring-inner > \*[\s\S]*?z-index:\s*2/,
+    'Energy ring copy should stay above decorative ring layers.'
+);
+assert.doesNotMatch(
+    app,
+    /controllerchange[\s\S]{0,240}location\.reload/,
+    'Service worker updates should not reload the page during navigation.'
+);
 
 console.log('ui structure audit passed');

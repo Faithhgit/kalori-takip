@@ -8333,3 +8333,1626 @@ body[data-page="dashboard"] .dashboard-date-nav {
         width: auto;
     }
 }
+
+/* Refined diary, add flow, saved meals and stacked notifications */
+.notification-stack {
+    position: fixed;
+    z-index: 1800;
+    top: 86px;
+    right: 18px;
+    width: min(440px, calc(100vw - 36px));
+    display: grid;
+    gap: 7px;
+    pointer-events: none;
+}
+
+.app-toast {
+    --toast-scale: 1;
+    min-height: 68px;
+    padding: 10px 40px 10px 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+    overflow: hidden;
+    background:
+        linear-gradient(115deg,
+            color-mix(in srgb, var(--danger) 12%, var(--surface)),
+            color-mix(in srgb, var(--surface) 94%, transparent));
+    border: 1px solid color-mix(in srgb, var(--danger) 42%, var(--border));
+    border-radius: 16px;
+    box-shadow: 0 18px 48px rgba(9, 24, 29, .23);
+    opacity: 0;
+    transform: translate3d(28px, -5px, 0) scale(var(--toast-scale));
+    transform-origin: top right;
+    transition:
+        opacity 220ms ease,
+        transform 260ms cubic-bezier(.2, .8, .2, 1),
+        filter 220ms ease;
+    pointer-events: auto;
+    backdrop-filter: blur(18px);
+}
+
+.app-toast.success {
+    background:
+        linear-gradient(115deg,
+            color-mix(in srgb, var(--primary) 15%, var(--surface)),
+            color-mix(in srgb, var(--violet) 5%, var(--surface)));
+    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+}
+
+.app-toast.is-visible {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(var(--toast-scale));
+}
+
+.app-toast.is-leaving {
+    opacity: 0 !important;
+    transform: translate3d(24px, -4px, 0) scale(.96);
+}
+
+.app-toast:nth-child(2) {
+    --toast-scale: .975;
+    opacity: .62;
+    filter: saturate(.82);
+}
+
+.app-toast:nth-child(3) {
+    --toast-scale: .95;
+    opacity: .32;
+    filter: saturate(.55);
+}
+
+.app-toast:nth-child(2).is-visible {
+    opacity: .62;
+}
+
+.app-toast:nth-child(3).is-visible {
+    opacity: .32;
+}
+
+.app-toast .toast-icon {
+    width: 40px;
+    height: 40px;
+}
+
+.toast-dismiss {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: transparent;
+    border: 0;
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 18px;
+    line-height: 1;
+}
+
+.toast-dismiss:hover {
+    background: color-mix(in srgb, var(--text) 7%, transparent);
+    color: var(--text);
+}
+
+body[data-page="logs"] .logs-section,
+body[data-page="add"] .add-section {
+    padding: 0;
+    background: transparent;
+    border: 0;
+}
+
+.logs-section-header {
+    padding: 2px 2px 10px;
+}
+
+.logs-toolbar {
+    margin-bottom: 18px;
+}
+
+.date-filter-panel {
+    padding: 16px;
+    background:
+        linear-gradient(135deg,
+            color-mix(in srgb, var(--violet) 7%, var(--surface-soft)),
+            color-mix(in srgb, var(--sky) 4%, var(--surface)));
+    border-radius: 18px;
+}
+
+.log-day-group {
+    overflow: visible;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+}
+
+.log-day-header {
+    min-height: 64px;
+    padding: 11px 16px;
+    background:
+        linear-gradient(120deg,
+            color-mix(in srgb, var(--violet) 12%, var(--surface-soft)),
+            color-mix(in srgb, var(--sky) 6%, var(--surface)));
+    border: 1px solid color-mix(in srgb, var(--violet) 22%, var(--border));
+    border-radius: 17px;
+}
+
+.log-day-header > div:first-child {
+    display: grid;
+    gap: 1px;
+}
+
+.log-day-header > div:first-child strong {
+    font-size: 16px;
+    font-weight: 850;
+}
+
+.log-day-total {
+    display: grid;
+    justify-items: end;
+    gap: 1px;
+}
+
+.log-day-total strong {
+    color: var(--accent);
+    font-size: 18px;
+}
+
+.log-day-total strong small {
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.log-day-total span {
+    font-size: 9px;
+}
+
+.meal-group {
+    margin: 11px 0 0;
+    padding-bottom: 12px;
+    background:
+        linear-gradient(145deg,
+            color-mix(in srgb, var(--meal-accent) 5%, var(--surface)),
+            var(--surface));
+    border-radius: 18px;
+}
+
+.meal-group + .meal-group {
+    border-top-width: 1px;
+}
+
+.meal-group-header {
+    min-height: 58px;
+    padding: 9px 12px;
+    background: transparent;
+    border-bottom: 0;
+    box-shadow: none;
+}
+
+.meal-group-header > div:first-child {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.meal-marker {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    background: color-mix(in srgb, var(--meal-accent) 14%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--meal-accent) 32%, var(--border));
+    border-radius: 11px;
+}
+
+.meal-marker i {
+    width: 9px;
+    height: 9px;
+    background: var(--meal-accent);
+    border-radius: 50%;
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--meal-accent) 12%, transparent);
+}
+
+.meal-heading-copy {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+}
+
+.meal-heading-copy strong {
+    font-size: 14px;
+}
+
+.meal-heading-copy span {
+    overflow: hidden;
+    font-size: 10px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.meal-log-grid {
+    padding: 0 12px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+}
+
+.meal-group .log-item {
+    min-height: 94px;
+    margin: 0;
+    padding: 12px;
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    gap: 5px 10px;
+    position: relative;
+    background: color-mix(in srgb, var(--surface-soft) 76%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--meal-accent) 16%, var(--border));
+    border-radius: 14px;
+    transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.meal-group .log-item:hover {
+    z-index: 1;
+    background: var(--surface);
+    border-color: color-mix(in srgb, var(--meal-accent) 38%, var(--border));
+    transform: translateY(-1px);
+}
+
+.log-symbol {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    grid-column: 1;
+    grid-row: 1 / 3;
+    align-self: center;
+    background: color-mix(in srgb, var(--meal-accent) 10%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--meal-accent) 28%, var(--border));
+    border-radius: 12px;
+    color: var(--meal-accent);
+    font-size: 14px;
+    font-weight: 850;
+}
+
+.log-info {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    align-self: center;
+}
+
+.log-name {
+    margin-bottom: 6px;
+    font-size: 12px;
+}
+
+.log-details {
+    align-items: center;
+    gap: 4px;
+}
+
+.log-details > span {
+    padding: 3px 5px;
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
+    border-radius: 6px;
+    font-size: 8.5px;
+    white-space: nowrap;
+}
+
+.log-details .log-portion {
+    padding-left: 0;
+    background: transparent;
+    color: var(--muted);
+}
+
+.log-protein {
+    color: var(--protein);
+}
+
+.log-carb {
+    color: var(--carb);
+}
+
+.log-fat {
+    color: var(--fat);
+}
+
+.log-kcal {
+    min-width: 54px;
+    padding: 5px 7px;
+    grid-column: 3;
+    grid-row: 1;
+    align-self: start;
+    background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+    border-radius: 9px;
+    color: var(--accent);
+    font-size: 15px;
+    text-align: center;
+}
+
+.log-kcal span {
+    display: inline;
+    margin-left: 2px;
+    color: inherit;
+    font-size: 7px;
+}
+
+.log-actions {
+    grid-column: 3;
+    grid-row: 2;
+    align-self: end;
+    justify-content: flex-end;
+}
+
+.log-edit,
+.log-delete {
+    width: 29px;
+    height: 29px;
+    min-height: 29px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 0;
+}
+
+.log-edit:hover {
+    border-color: color-mix(in srgb, var(--violet) 40%, var(--border));
+    color: var(--violet);
+}
+
+.log-delete:hover {
+    border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+    color: var(--danger);
+}
+
+.log-edit svg,
+.log-delete svg,
+.template-secondary-actions svg {
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.add-form {
+    display: grid;
+    grid-template-columns: minmax(220px, .7fr) minmax(0, 1.3fr);
+    gap: 14px;
+}
+
+.add-flow-heading {
+    min-height: 88px;
+    padding: 18px 20px;
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: relative;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 88% 10%, color-mix(in srgb, var(--violet) 20%, transparent), transparent 34%),
+        linear-gradient(125deg,
+            color-mix(in srgb, var(--violet) 12%, var(--surface-soft)),
+            color-mix(in srgb, var(--sky) 7%, var(--surface)));
+    border: 1px solid color-mix(in srgb, var(--violet) 23%, var(--border));
+    border-radius: 19px;
+}
+
+.add-flow-heading > span {
+    padding: 7px 9px;
+    background: color-mix(in srgb, var(--violet) 14%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--violet) 28%, var(--border));
+    border-radius: 9px;
+    color: var(--violet);
+    font-size: 9px;
+    font-weight: 850;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.add-flow-heading h2,
+.add-flow-heading p {
+    margin: 0;
+}
+
+.add-flow-heading h2 {
+    font-size: 20px;
+}
+
+.add-flow-heading p {
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 10px;
+}
+
+.add-step {
+    min-width: 0;
+    padding: 14px;
+    background: color-mix(in srgb, var(--surface-soft) 72%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--violet) 14%, var(--border));
+    border-radius: 17px;
+}
+
+body[data-page="add"] #preset-section,
+body[data-page="add"] #custom-section {
+    margin-top: 0;
+    padding: 14px;
+    background: color-mix(in srgb, var(--surface-soft) 72%, var(--surface));
+    border-color: color-mix(in srgb, var(--violet) 14%, var(--border));
+    border-radius: 17px;
+}
+
+body[data-page="add"] .add-step-amount .add-meta-grid {
+    margin-top: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+}
+
+.add-step-type {
+    box-shadow: inset 0 3px color-mix(in srgb, var(--violet) 65%, var(--border));
+}
+
+.add-step-search {
+    box-shadow: inset 0 3px color-mix(in srgb, var(--sky) 65%, var(--border));
+}
+
+.add-step-amount {
+    grid-column: 1 / -1;
+    box-shadow: inset 0 3px color-mix(in srgb, var(--primary) 65%, var(--border));
+}
+
+.add-step-heading {
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.add-step-heading b {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    background: color-mix(in srgb, var(--violet) 10%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--violet) 24%, var(--border));
+    border-radius: 9px;
+    color: var(--violet);
+    font-size: 10px;
+}
+
+.add-step-heading > div {
+    display: grid;
+    gap: 1px;
+}
+
+.add-step-heading strong {
+    font-size: 12px;
+}
+
+.add-step-heading span {
+    color: var(--muted);
+    font-size: 9px;
+}
+
+.add-step .form-group {
+    margin-bottom: 0;
+}
+
+.add-step-search .search-support-text {
+    margin-bottom: 0;
+}
+
+.add-step .radio-group {
+    background: color-mix(in srgb, var(--surface) 70%, transparent);
+    border: 1px solid var(--border);
+}
+
+.add-step .radio-label span {
+    min-height: 42px;
+}
+
+.add-step-amount .add-meta-grid {
+    grid-template-columns: minmax(170px, .8fr) minmax(140px, .65fr) minmax(150px, .7fr) minmax(0, 1fr);
+}
+
+.add-form > .calculation-preview,
+.add-form > .add-actions,
+.add-form > .add-queue-panel {
+    grid-column: 1 / -1;
+}
+
+.add-form > .calculation-preview {
+    margin: 0;
+    padding: 12px;
+    background:
+        linear-gradient(120deg,
+            color-mix(in srgb, var(--primary) 9%, var(--surface-soft)),
+            color-mix(in srgb, var(--sky) 5%, var(--surface)));
+    border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--border));
+    border-radius: 16px;
+}
+
+.add-actions {
+    min-height: 54px;
+}
+
+.add-actions > button {
+    border-radius: 14px;
+}
+
+.templates-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 12px;
+}
+
+.template-card {
+    min-width: 0;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 95% 0, color-mix(in srgb, var(--violet) 10%, transparent), transparent 35%),
+        color-mix(in srgb, var(--surface-soft) 72%, var(--surface));
+    border-radius: 18px;
+}
+
+.template-card-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+}
+
+.template-card-content {
+    min-width: 0;
+}
+
+.template-card-eyebrow {
+    margin-bottom: 7px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.template-card-eyebrow > span {
+    padding: 4px 7px;
+    background: color-mix(in srgb, var(--violet) 12%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--violet) 24%, var(--border));
+    border-radius: 7px;
+    color: var(--violet);
+    font-size: 8px;
+    font-weight: 850;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.template-card-eyebrow > span[data-kind="meal"] {
+    background: color-mix(in srgb, var(--sky) 10%, var(--surface));
+    border-color: color-mix(in srgb, var(--sky) 24%, var(--border));
+    color: var(--sky);
+}
+
+.template-card-eyebrow small {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 8.5px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.template-card-name {
+    font-size: 16px;
+    line-height: 1.3;
+}
+
+.template-card-nutrition {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: 1.15fr repeat(3, minmax(0, 1fr));
+    gap: 7px;
+}
+
+.template-card-nutrition > strong,
+.template-card-nutrition > span {
+    min-width: 0;
+    min-height: 47px;
+    padding: 7px 9px;
+    display: grid;
+    align-content: center;
+    gap: 1px;
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+.template-card-nutrition > strong {
+    color: var(--accent);
+}
+
+.template-card-nutrition > strong b {
+    font-size: 17px;
+}
+
+.template-card-nutrition > strong small,
+.template-card-nutrition > span small {
+    color: var(--muted);
+    font-size: 7.5px;
+    font-weight: 650;
+}
+
+.template-card-nutrition > span b {
+    color: var(--text);
+    font-size: 10px;
+}
+
+.template-card-nutrition > span[data-macro="protein"] {
+    border-color: color-mix(in srgb, var(--protein) 22%, var(--border));
+}
+
+.template-card-nutrition > span[data-macro="carb"] {
+    border-color: color-mix(in srgb, var(--carb) 22%, var(--border));
+}
+
+.template-card-nutrition > span[data-macro="fat"] {
+    border-color: color-mix(in srgb, var(--fat) 22%, var(--border));
+}
+
+.template-card-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 8px;
+}
+
+.template-primary-action {
+    min-width: 0;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.template-primary-action > .template-apply {
+    min-height: 38px;
+    flex: 1;
+}
+
+.template-portion-control {
+    min-width: 112px;
+}
+
+.template-portion-control > span:last-child {
+    min-height: 38px;
+    padding: 3px 7px;
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+.template-portion-control input {
+    width: 72px;
+    min-height: 30px;
+    padding: 4px;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    font-weight: 800;
+}
+
+.template-portion-control em {
+    color: var(--muted);
+    font-size: 9px;
+    font-style: normal;
+}
+
+.template-secondary-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.template-secondary-actions .btn {
+    min-width: 38px;
+    min-height: 38px;
+    padding: 7px 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.template-delete {
+    color: var(--danger);
+}
+
+.template-card-items {
+    margin-top: auto;
+    padding-top: 13px;
+    display: grid;
+    gap: 6px;
+}
+
+.template-card-items > small {
+    color: var(--muted);
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+}
+
+.template-card-items > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.template-item-pill {
+    padding: 5px 7px;
+    background: color-mix(in srgb, var(--violet) 5%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--violet) 13%, var(--border));
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 8px;
+}
+
+.template-item-pill b {
+    color: var(--text);
+}
+
+.dashboard-date-nav > label {
+    position: relative;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 1fr;
+    place-items: center;
+    text-align: center;
+}
+
+.dashboard-date-nav input[type="date"] {
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    opacity: 0;
+}
+
+.dashboard-date-nav .dashboard-today-btn[hidden] {
+    display: none;
+}
+
+@media (max-width: 980px) {
+    .meal-log-grid,
+    .templates-list {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 760px) {
+    .notification-stack {
+        top: auto;
+        right: 10px;
+        bottom: calc(84px + env(safe-area-inset-bottom));
+        width: calc(100vw - 20px);
+    }
+
+    .app-toast {
+        transform-origin: bottom center;
+    }
+
+    .logs-section-header {
+        padding-inline: 2px;
+    }
+
+    .date-filter-panel {
+        padding: 12px;
+    }
+
+    .log-day-header {
+        min-height: 58px;
+        padding-inline: 13px;
+    }
+
+    .meal-group {
+        margin-top: 9px;
+    }
+
+    .meal-group-header {
+        gap: 8px;
+    }
+
+    .meal-log-grid {
+        padding-inline: 9px;
+    }
+
+    .add-form {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .add-flow-heading,
+    .add-step,
+    .add-step-amount,
+    .add-form > .calculation-preview,
+    .add-form > .add-actions,
+    .add-form > .add-queue-panel {
+        grid-column: 1;
+    }
+
+    .add-flow-heading {
+        min-height: 80px;
+        padding: 15px;
+    }
+
+    .add-flow-heading h2 {
+        font-size: 17px;
+    }
+
+    .add-step {
+        padding: 12px;
+    }
+
+    body[data-page="add"] #preset-section,
+    body[data-page="add"] #custom-section {
+        margin-top: 0;
+        padding: 12px;
+        border-radius: 17px;
+    }
+
+    .add-step-amount .add-meta-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .template-card {
+        padding: 14px;
+    }
+}
+
+@media (max-width: 520px) {
+    .app-toast {
+        min-height: 64px;
+        padding-right: 36px;
+    }
+
+    .app-toast .toast-icon {
+        width: 36px;
+        height: 36px;
+    }
+
+    .toast-action {
+        min-width: 74px;
+    }
+
+    .date-filter-heading > div > span {
+        display: none;
+    }
+
+    .meal-group-header {
+        align-items: flex-start;
+    }
+
+    .meal-group-actions {
+        padding-top: 2px;
+    }
+
+    .meal-move {
+        display: none;
+    }
+
+    .meal-heading-copy span {
+        max-width: 160px;
+    }
+
+    .meal-group .log-item {
+        min-height: 102px;
+        padding: 10px;
+        grid-template-columns: 36px minmax(0, 1fr) auto;
+        gap: 5px 8px;
+    }
+
+    .log-symbol {
+        width: 36px;
+        height: 36px;
+    }
+
+    .log-details > span:not(.log-portion):not(.log-macro):not(.log-confidence) {
+        display: none;
+    }
+
+    .add-flow-heading {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .add-step-amount .add-meta-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .add-actions {
+        grid-template-columns: .8fr 1.2fr;
+        gap: 8px;
+    }
+
+    .template-card-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .template-primary-action {
+        width: 100%;
+    }
+
+    .template-secondary-actions {
+        justify-content: flex-end;
+    }
+
+    .template-secondary-actions .btn {
+        min-width: 38px;
+    }
+
+    .template-secondary-actions .btn span {
+        display: none;
+    }
+
+    .template-card-nutrition {
+        grid-template-columns: 1.2fr repeat(3, minmax(0, 1fr));
+        gap: 5px;
+    }
+
+    .template-card-nutrition > strong,
+    .template-card-nutrition > span {
+        min-height: 44px;
+        padding: 6px;
+    }
+
+    .dashboard-date-nav > label {
+        min-width: 0;
+        padding-inline: 5px;
+    }
+
+    .dashboard-date-nav > label > span {
+        overflow: hidden;
+        max-width: 100%;
+        font-size: 10px;
+        text-overflow: ellipsis;
+    }
+
+    .dashboard-date-nav > button {
+        width: 36px;
+        height: 36px;
+    }
+
+    .dashboard-date-nav .dashboard-today-btn {
+        padding-inline: 8px;
+        font-size: 9px;
+    }
+}
+
+@media (max-width: 370px) {
+    .template-primary-action {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .template-portion-control {
+        width: 100%;
+    }
+
+    .template-portion-control > span:last-child {
+        width: 100%;
+    }
+}
+
+/* Unified interface scale
+   Keep hierarchy intentional: page > feature > card > item > body > meta. */
+:root {
+    --ui-space-1: 4px;
+    --ui-space-2: 8px;
+    --ui-space-3: 12px;
+    --ui-space-4: 16px;
+    --ui-space-5: 20px;
+    --ui-space-6: 24px;
+    --ui-font-meta: 10px;
+    --ui-font-label: 11px;
+    --ui-font-body: 13px;
+    --ui-font-item: 14px;
+    --ui-font-section: 16px;
+    --ui-font-card: 20px;
+    --ui-font-feature: 24px;
+    --ui-font-page: 28px;
+    --ui-radius-control: 11px;
+    --ui-radius-item: 14px;
+    --ui-radius-card: 18px;
+    --ui-radius-panel: 22px;
+    --ui-control-height: 42px;
+    --radius-xl: var(--ui-radius-panel);
+    --radius-lg: var(--ui-radius-card);
+    --radius-md: var(--ui-radius-item);
+    --radius-sm: var(--ui-radius-control);
+}
+
+body {
+    font-size: var(--ui-font-body);
+}
+
+.page-titlebar {
+    margin-bottom: var(--ui-space-5);
+    gap: var(--ui-space-4);
+}
+
+.page-titlebar h1 {
+    font-size: var(--ui-font-page) !important;
+    line-height: 1.15;
+    letter-spacing: -.035em;
+}
+
+body :is(
+    .summary-card,
+    .stats-card,
+    .dashboard-training-toggle,
+    .weight-card,
+    .chart-section,
+    .modal-content
+) {
+    border-radius: var(--ui-radius-panel);
+}
+
+body :is(
+    .summary-card,
+    .stats-card,
+    .weight-card,
+    .chart-section
+) {
+    padding: var(--ui-space-5);
+}
+
+body:not([data-page="dashboard"]) .main-content {
+    overflow: visible;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+body:not([data-page="dashboard"]) .main-content::before {
+    display: none;
+}
+
+body:is(
+    [data-page="logs"],
+    [data-page="add"],
+    [data-page="catalog"],
+    [data-page="assistant"],
+    [data-page="health"]
+) :is(
+    .logs-section,
+    .add-section,
+    .catalog-section,
+    .templates-section,
+    .assistant-section,
+    .health-section
+) {
+    width: 100%;
+    max-width: none;
+    padding: var(--ui-space-5);
+    background:
+        linear-gradient(125deg,
+            color-mix(in srgb, var(--violet) 5%, var(--surface-soft)),
+            color-mix(in srgb, var(--sky) 3%, var(--surface)) 68%);
+    border: 1px solid color-mix(in srgb, var(--violet) 17%, var(--border));
+    border-radius: var(--ui-radius-panel);
+}
+
+body :is(
+    .stats-header h2,
+    .logs-section-header h2,
+    .templates-header h3,
+    .weight-card > .stats-header h2,
+    .chart-section > h2,
+    .health-section h2,
+    .modal-header h2
+) {
+    font-size: var(--ui-font-card) !important;
+    line-height: 1.25;
+    letter-spacing: -.025em;
+}
+
+body :is(
+    .summary-card h2,
+    .assistant-hero h2
+) {
+    font-size: var(--ui-font-feature) !important;
+    line-height: 1.2;
+    letter-spacing: -.035em;
+}
+
+body[data-page="add"] .add-section {
+    width: 100%;
+    max-width: none;
+}
+
+body[data-page="add"] .add-flow-heading h2 {
+    font-size: var(--ui-font-card) !important;
+}
+
+body[data-page="add"] .add-actions {
+    min-height: 0;
+}
+
+body[data-page="add"] .add-actions > button {
+    height: var(--ui-control-height);
+    min-height: var(--ui-control-height);
+}
+
+.meal-log-grid > .log-item:only-child {
+    grid-column: 1 / -1;
+}
+
+body :is(
+    .assistant-card-heading h3,
+    .assistant-review-top h3,
+    .template-form-header h3,
+    .settings-accordion h3,
+    .daily-checkin-heading strong
+) {
+    font-size: var(--ui-font-section) !important;
+    line-height: 1.3;
+}
+
+body :is(
+    .catalog-item-name,
+    .template-card-name,
+    .log-name,
+    .meal-heading-copy strong,
+    .add-step-heading strong,
+    .template-items-heading strong,
+    .assistant-preview-copy strong,
+    .measurement-item strong
+) {
+    font-size: var(--ui-font-item) !important;
+    line-height: 1.35;
+}
+
+body :is(
+    .form-group > label,
+    .settings-group > label,
+    .logs-filter-field > span:first-child,
+    .portion-presets-label,
+    .template-portion-control,
+    .assistant-preview-meta label > span,
+    .assistant-amount-field > span,
+    .assistant-unit-field > span
+) {
+    font-size: var(--ui-font-label) !important;
+    line-height: 1.35;
+}
+
+body :is(
+    .catalog-item-type,
+    .catalog-advanced,
+    .log-details,
+    .meal-heading-copy span,
+    .template-card-eyebrow small,
+    .template-item-pill,
+    .search-support-text,
+    .nutrition-confidence-note,
+    .recipe-yield-hint,
+    .photo-storage-note,
+    .assistant-kicker,
+    .assistant-usage,
+    .assistant-composer-footer > span,
+    .add-step-heading span,
+    .log-day-header span
+) {
+    font-size: var(--ui-font-meta) !important;
+    line-height: 1.45;
+}
+
+body :is(
+    .date-filter-heading strong,
+    .macro-label,
+    .macro-value,
+    .calorie-metric > span,
+    .calorie-progress-copy,
+    .daily-micro-summary small,
+    .weight-stat-label,
+    .weight-stat-value,
+    .assistant-command-result p,
+    .assistant-review-card > p,
+    .modal-support,
+    .confirm-modal-message
+) {
+    font-size: var(--ui-font-body) !important;
+    line-height: 1.45;
+}
+
+body :is(
+    .date-filter-panel,
+    .log-day-header,
+    .meal-group,
+    .add-step,
+    .add-flow-heading,
+    .template-card,
+    .catalog-item,
+    .assistant-hero,
+    .assistant-chat-card,
+    .assistant-review-card,
+    .settings-accordion,
+    .progress-details,
+    .target-calendar,
+    .progress-insight-grid article,
+    .measurement-item,
+    .photo-file-picker,
+    .app-toast
+) {
+    border-radius: var(--ui-radius-card);
+}
+
+body :is(
+    .log-item,
+    .macro-item,
+    .calculation-preview,
+    .add-queue-panel,
+    .template-form-item,
+    .template-nutrition-preview,
+    .assistant-command-result,
+    .assistant-composer,
+    .assistant-preview,
+    .assistant-review-result,
+    .weight-explanation,
+    .goal-arrival,
+    .daily-checkin,
+    .settings-status
+) {
+    border-radius: var(--ui-radius-item);
+}
+
+body :is(
+    input:not([type="radio"]):not([type="checkbox"]):not([type="range"]),
+    select,
+    textarea
+) {
+    min-height: var(--ui-control-height);
+    padding: 9px 12px;
+    border-radius: var(--ui-radius-control);
+    font-size: var(--ui-font-body) !important;
+    line-height: 1.35;
+}
+
+body textarea {
+    min-height: 88px;
+}
+
+body :is(
+    .btn,
+    .btn-primary,
+    .btn-secondary,
+    .btn-add,
+    .toolbar-action,
+    .quick-date-btn,
+    .meal-add,
+    .meal-move,
+    .catalog-filter-btn,
+    .catalog-view-btn,
+    .add-queue-button,
+    .assistant-review-btn,
+    .assistant-suggestion-btn
+) {
+    min-height: var(--ui-control-height);
+    padding: 9px 13px;
+    border-radius: var(--ui-radius-control);
+    font-size: var(--ui-font-label) !important;
+    font-weight: 750;
+    line-height: 1.2;
+}
+
+body :is(
+    .icon-btn,
+    .log-edit,
+    .log-delete,
+    .queue-delete-btn,
+    .measurement-delete-btn,
+    .catalog-favorite,
+    .toast-dismiss
+) {
+    padding: 0;
+}
+
+.stats-header,
+.templates-header,
+.logs-section-header,
+.template-form-header,
+.assistant-card-heading {
+    min-height: 42px;
+    margin-bottom: var(--ui-space-3);
+    gap: var(--ui-space-3);
+}
+
+.macro-list,
+.logs-container,
+.templates-list,
+.catalog-list,
+.assistant-preview-list,
+.measurement-list {
+    gap: var(--ui-space-3);
+}
+
+.macro-item,
+.progress-insight-grid article,
+.assistant-command-result,
+.assistant-review-result,
+.settings-status {
+    padding: var(--ui-space-3);
+}
+
+.date-filter-panel,
+.add-step,
+.template-card,
+.assistant-chat-card,
+.assistant-review-card,
+.settings-accordion,
+.progress-details {
+    padding: var(--ui-space-4);
+}
+
+.log-day-header,
+.meal-group-header,
+.measurement-item {
+    padding: var(--ui-space-3) var(--ui-space-4);
+}
+
+.meal-log-grid {
+    padding-inline: var(--ui-space-4);
+    gap: var(--ui-space-3);
+}
+
+.meal-group .log-item {
+    padding: var(--ui-space-3);
+}
+
+.catalog-item {
+    padding: var(--ui-space-3);
+}
+
+.template-card-nutrition > strong,
+.template-card-nutrition > span,
+.catalog-energy,
+.catalog-macro {
+    border-radius: var(--ui-radius-control);
+}
+
+.radio-group,
+.quick-date-group,
+.catalog-switcher,
+.custom-type-choice {
+    padding: var(--ui-space-1);
+    border-radius: var(--ui-radius-item);
+}
+
+.radio-label span,
+.quick-date-btn,
+.catalog-view-btn {
+    min-height: 38px;
+    border-radius: var(--ui-radius-control);
+}
+
+body .template-portion-control input {
+    min-height: 30px;
+    padding: 4px;
+    border: 0;
+    border-radius: 0;
+}
+
+body .dashboard-date-nav input[type="date"] {
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    opacity: 0;
+}
+
+.template-secondary-actions .btn,
+.template-primary-action > .template-apply {
+    min-height: var(--ui-control-height);
+}
+
+@media (max-width: 760px) {
+    :root {
+        --ui-font-page: 25px;
+        --ui-font-card: 19px;
+        --ui-font-feature: 22px;
+        --ui-space-5: 16px;
+        --ui-space-6: 20px;
+    }
+
+    .page-titlebar {
+        margin-bottom: var(--ui-space-4);
+    }
+
+    body:not([data-page="dashboard"]) .main-content {
+        padding: 0;
+        border-radius: 0;
+    }
+
+    body:is(
+        [data-page="logs"],
+        [data-page="add"],
+        [data-page="catalog"],
+        [data-page="assistant"],
+        [data-page="health"]
+    ) :is(
+        .logs-section,
+        .add-section,
+        .catalog-section,
+        .templates-section,
+        .assistant-section,
+        .health-section
+    ) {
+        padding: var(--ui-space-4);
+        border-radius: var(--ui-radius-card);
+    }
+
+    body :is(
+        .summary-card,
+        .stats-card,
+        .weight-card,
+        .chart-section
+    ) {
+        padding: var(--ui-space-4);
+    }
+
+    .date-filter-panel,
+    .add-step,
+    .template-card,
+    .assistant-chat-card,
+    .assistant-review-card,
+    .settings-accordion,
+    .progress-details {
+        padding: var(--ui-space-3);
+    }
+
+    .log-day-header,
+    .meal-group-header,
+    .measurement-item {
+        padding: var(--ui-space-3);
+    }
+
+    .meal-log-grid {
+        padding-inline: var(--ui-space-3);
+        gap: var(--ui-space-2);
+    }
+}
+
+@media (max-width: 390px) {
+    :root {
+        --ui-font-page: 23px;
+        --ui-font-card: 18px;
+        --ui-font-feature: 20px;
+        --ui-font-item: 13px;
+        --ui-font-body: 12px;
+        --ui-control-height: 40px;
+    }
+}
+
+/* Mobile stability: keep the energy readout above the ring artwork and dock
+   navigation to the viewport instead of the sticky header's containing block. */
+.calorie-ring-inner {
+    isolation: isolate;
+}
+
+.calorie-ring-inner::before {
+    z-index: 0;
+}
+
+.calorie-ring-inner > * {
+    position: relative;
+    z-index: 2;
+    flex-shrink: 0;
+}
+
+@media (max-width: 760px) {
+    html,
+    body {
+        max-width: 100%;
+        overflow-x: clip;
+    }
+
+    body > .tabs-container.is-mobile-docked {
+        position: fixed !important;
+        z-index: 1200;
+        top: auto !important;
+        right: 8px;
+        bottom: max(7px, env(safe-area-inset-bottom)) !important;
+        left: 8px;
+        width: auto;
+        max-width: calc(100svw - 16px);
+        height: 64px;
+        margin: 0;
+        padding: 5px;
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 2px;
+        overflow: hidden;
+        background: color-mix(in srgb, var(--surface) 96%, transparent);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24);
+        transform: translateZ(0);
+        -webkit-transform: translateZ(0);
+    }
+
+    body > .tabs-container.is-mobile-docked .tab-button {
+        min-width: 0;
+        min-height: 52px;
+        margin: 0;
+        padding: 5px 2px;
+        flex-direction: column;
+        gap: 3px;
+        border-radius: 13px;
+    }
+
+    body[data-page="assistant"] :is(
+        .container,
+        .main-content,
+        .assistant-section,
+        .assistant-layout,
+        .assistant-chat-card,
+        .assistant-review-card
+    ) {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .summary-card[data-page="dashboard"] .calorie-ring-inner {
+        box-sizing: border-box;
+        padding: 17px 8px 14px;
+        justify-content: center;
+        overflow: hidden;
+    }
+
+    .summary-card[data-page="dashboard"] .calorie-ring-kicker {
+        margin-bottom: 4px;
+        font-size: 8px;
+        line-height: 1.1;
+        white-space: nowrap;
+    }
+
+    .summary-card[data-page="dashboard"] .calorie-current {
+        line-height: .95;
+    }
+
+    .summary-card[data-page="dashboard"] .calorie-ring-unit {
+        margin-top: 4px;
+        line-height: 1.1;
+    }
+
+    .summary-card[data-page="dashboard"] .calorie-ring-status {
+        margin-top: 6px;
+        padding: 3px 7px;
+        line-height: 1.1;
+        white-space: nowrap;
+    }
+}

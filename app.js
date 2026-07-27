@@ -852,7 +852,7 @@ let logsDateFilter = '';
 let logsDateToFilter = '';
 let logsVisibleCount = LOGS_PAGE_SIZE;
 let pendingUiMessage = null;
-let toastTimer = null;
+const toastTimers = new Map();
 let toastSequence = 0;
 let confirmResolver = null;
 let mealPickerResolver = null;
@@ -918,9 +918,13 @@ function getDashboardDate() {
 }
 
 function getDashboardDateCaption(date = getDashboardDate()) {
-    if (date === getToday()) return 'Bugün';
-    if (date === shiftDate(getToday(), -1)) return 'Dün';
-    return `${getTurkishDayName(date)} · ${formatDate(date)}`;
+    const shortDate = new Intl.DateTimeFormat('tr-TR', {
+        day: 'numeric',
+        month: 'short'
+    }).format(new Date(`${date}T12:00:00`)).replace('.', '');
+    if (date === getToday()) return `Bugün · ${shortDate}`;
+    if (date === shiftDate(getToday(), -1)) return `Dün · ${shortDate}`;
+    return `${getTurkishDayName(date)} · ${shortDate}`;
 }
 
 function syncDashboardDateControls() {
@@ -1164,21 +1168,18 @@ function applyFuturePreviewData() {
 }
 
 function showError(message, type = 'error', options = {}) {
-    const errorEl = document.getElementById('errorMessage');
-    if (!errorEl) {
+    const stack = document.getElementById('errorMessage');
+    if (!stack) {
         pendingUiMessage = { message, type, options };
         return;
     }
 
     pendingUiMessage = null;
     toastSequence += 1;
-    const currentSequence = toastSequence;
-    if (toastTimer) window.clearTimeout(toastTimer);
-    errorEl.replaceChildren();
-    errorEl.classList.toggle('success', type === 'success');
-    errorEl.classList.remove('is-leaving');
-    errorEl.setAttribute('role', type === 'success' ? 'status' : 'alert');
-    errorEl.setAttribute('aria-live', type === 'success' ? 'polite' : 'assertive');
+    const toast = document.createElement('article');
+    toast.className = `app-toast ${type === 'success' ? 'success' : 'error'}`;
+    toast.dataset.toastId = String(toastSequence);
+    toast.setAttribute('role', type === 'success' ? 'status' : 'alert');
 
     const icon = document.createElement('span');
     icon.className = 'toast-icon';
@@ -1192,7 +1193,7 @@ function showError(message, type = 'error', options = {}) {
     const detail = document.createElement('span');
     detail.textContent = message;
     copy.append(title, detail);
-    errorEl.append(icon, copy);
+    toast.append(icon, copy);
 
     if (options.actionLabel && typeof options.onAction === 'function') {
         const action = document.createElement('button');
@@ -1200,18 +1201,32 @@ function showError(message, type = 'error', options = {}) {
         action.className = 'toast-action';
         action.textContent = options.actionLabel;
         action.addEventListener('click', () => {
-            clearError();
+            dismissToast(toast);
             options.onAction();
         });
-        errorEl.append(action);
+        toast.append(action);
     }
 
-    errorEl.style.display = 'flex';
-    void errorEl.offsetWidth;
-    errorEl.classList.add('is-visible');
-    toastTimer = window.setTimeout(() => {
-        if (toastSequence === currentSequence) clearError();
-    }, Number(options.duration) || (type === 'success' ? 4200 : 5200));
+    const dismiss = document.createElement('button');
+    dismiss.type = 'button';
+    dismiss.className = 'toast-dismiss';
+    dismiss.setAttribute('aria-label', 'Bildirimi kapat');
+    dismiss.textContent = '×';
+    dismiss.addEventListener('click', () => dismissToast(toast));
+    toast.append(dismiss);
+
+    stack.prepend(toast);
+    window.requestAnimationFrame(() => toast.classList.add('is-visible'));
+
+    while (stack.children.length > 3) {
+        dismissToast(stack.lastElementChild, true);
+    }
+
+    const timer = window.setTimeout(
+        () => dismissToast(toast),
+        Number(options.duration) || (type === 'success' ? 5200 : 6500)
+    );
+    toastTimers.set(toast, timer);
 }
 
 function showLogAddedNotification(message) {
@@ -1225,24 +1240,26 @@ function showLogAddedNotification(message) {
 }
 
 function clearError() {
-    const errorEl = document.getElementById('errorMessage');
+    const stack = document.getElementById('errorMessage');
     pendingUiMessage = null;
-    if (!errorEl) return;
-    const clearingSequence = toastSequence;
-    if (toastTimer) window.clearTimeout(toastTimer);
-    toastTimer = null;
-    if (!errorEl.classList.contains('is-visible')) {
-        errorEl.style.display = 'none';
+    if (!stack) return;
+    [...stack.children].forEach(toast => dismissToast(toast, true));
+}
+
+function dismissToast(toast, immediate = false) {
+    if (!(toast instanceof HTMLElement)) return;
+    const timer = toastTimers.get(toast);
+    if (timer) window.clearTimeout(timer);
+    toastTimers.delete(toast);
+
+    if (immediate) {
+        toast.remove();
         return;
     }
-    errorEl.classList.remove('is-visible');
-    errorEl.classList.add('is-leaving');
-    window.setTimeout(() => {
-        if (toastSequence !== clearingSequence) return;
-        errorEl.replaceChildren();
-        errorEl.classList.remove('success', 'is-leaving');
-        errorEl.style.display = 'none';
-    }, 210);
+
+    toast.classList.remove('is-visible');
+    toast.classList.add('is-leaving');
+    window.setTimeout(() => toast.remove(), 220);
 }
 
 function requestConfirmation({
@@ -1958,6 +1975,7 @@ function renderLogs() {
     const mealOrder = ['breakfast', 'lunch', 'dinner', 'snack'];
     container.innerHTML = [...logsByDate.entries()].map(([date, dayLogs]) => {
         const dayKcal = dayLogs.reduce((sum, log) => sum + Number(log.kcal || 0), 0);
+        const dayTotals = getMealTotals(dayLogs);
         const mealKeys = [
             ...mealOrder.filter(type => dayLogs.some(log => log.meal_type === type)),
             ...new Set(dayLogs
@@ -1972,7 +1990,10 @@ function renderLogs() {
                         <strong>${date === getToday() ? 'Bugün' : formatDate(date)}</strong>
                         <span>${getTurkishDayName(date)}</span>
                     </div>
-                    <span>${Math.round(dayKcal)} kcal</span>
+                    <div class="log-day-total">
+                        <strong>${Math.round(dayKcal)} <small>kcal</small></strong>
+                        <span>P ${Math.round(dayTotals.protein)} · K ${Math.round(dayTotals.carb)} · Y ${Math.round(dayTotals.fat)}</span>
+                    </div>
                 </div>
                 ${mealKeys.map(mealType => {
                     const mealLogs = dayLogs.filter(log => (log.meal_type || 'other') === mealType);
@@ -1982,14 +2003,18 @@ function renderLogs() {
                         <div class="meal-group" data-meal="${mealType}" data-date="${date}">
                             <div class="meal-group-header">
                                 <div>
-                                    <strong>${mealLabel}</strong>
-                                    <span>${Math.round(mealTotals.kcal)} kcal · P ${Math.round(mealTotals.protein)}g · K ${Math.round(mealTotals.carb)}g · Y ${Math.round(mealTotals.fat)}g</span>
+                                    <span class="meal-marker" aria-hidden="true"><i></i></span>
+                                    <div class="meal-heading-copy">
+                                        <strong>${mealLabel}</strong>
+                                        <span>${Math.round(mealTotals.kcal)} kcal · P ${Math.round(mealTotals.protein)} · K ${Math.round(mealTotals.carb)} · Y ${Math.round(mealTotals.fat)}</span>
+                                    </div>
                                 </div>
                                 <div class="meal-group-actions">
                                     <button class="meal-move" type="button" data-meal="${mealType}" data-date="${date}">Taşı</button>
                                     <button class="meal-add" type="button" data-meal="${mealType}" data-date="${date}">+ Ekle</button>
                                 </div>
                             </div>
+                            <div class="meal-log-grid">
                             ${mealLogs.map(log => {
                                 const safeLogId = escapeHtml(log.id);
                                 const protein = Number.isFinite(Number(log.protein)) ? Number(log.protein) : 0;
@@ -2007,15 +2032,17 @@ function renderLogs() {
                                 const confidenceLabel = confidence === 'verified'
                                     ? ''
                                     : `<span class="log-confidence" data-confidence="${confidence}">${getNutritionConfidenceLabel(confidence)}</span>`;
+                                const itemInitial = escapeHtml(String(log.item_name || '?').trim().charAt(0).toLocaleUpperCase('tr-TR'));
                                 return `
                                 <div class="log-item" data-id="${safeLogId}" draggable="true">
+                                    <div class="log-symbol" aria-hidden="true">${itemInitial}</div>
                                     <div class="log-info">
                                         <div class="log-name">${escapeHtml(log.item_name)}</div>
                                         <div class="log-details">
-                                            <span>${escapeHtml(formatLogPortion(log))}</span>
-                                            <span>P ${protein}g</span>
-                                            <span>K ${carb}g</span>
-                                            <span>Y ${fat}g</span>
+                                            <span class="log-portion">${escapeHtml(formatLogPortion(log))}</span>
+                                            <span class="log-macro log-protein">P ${protein}g</span>
+                                            <span class="log-macro log-carb">K ${carb}g</span>
+                                            <span class="log-macro log-fat">Y ${fat}g</span>
                                             ${fiber > 0 ? `<span>L ${fiber}g</span>` : ''}
                                             ${sugar > 0 ? `<span>Ş ${sugar}g</span>` : ''}
                                             ${saltEquivalent > 0 ? `<span>Tuz ${saltEquivalent}g</span>` : ''}
@@ -2024,12 +2051,17 @@ function renderLogs() {
                                     </div>
                                     <div class="log-kcal">${kcal}<span>kcal</span></div>
                                     <div class="log-actions">
-                                        <button class="log-edit" data-id="${safeLogId}" title="Düzenle">Düzenle</button>
-                                        <button class="log-delete" data-id="${safeLogId}" title="Sil">Sil</button>
+                                        <button class="log-edit" type="button" data-id="${safeLogId}" title="Düzenle" aria-label="${escapeHtml(log.item_name)} kaydını düzenle">
+                                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.6-10.6a2 2 0 0 0-2.8-2.8L5.4 16.2 4 20Z"/><path d="m14.8 6.8 2.4 2.4"/></svg>
+                                        </button>
+                                        <button class="log-delete" type="button" data-id="${safeLogId}" title="Sil" aria-label="${escapeHtml(log.item_name)} kaydını sil">
+                                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>
+                                        </button>
                                     </div>
                                 </div>
                             `;
                             }).join('')}
+                            </div>
                         </div>
                     `;
                 }).join('')}
@@ -3545,45 +3577,64 @@ function renderTemplateList() {
         const displayNutrition = tpl.kind === 'recipe'
             ? calculateRecipeNutrition([totals], tpl.yieldAmount, defaultAmount)
             : totals;
-        const kindLabel = tpl.kind === 'recipe'
-            ? `Tarif · ${tpl.yieldAmount} ${tpl.yieldUnit} · ${tpl.servings} porsiyon`
-            : 'Kayıtlı öğün';
+        const kindLabel = tpl.kind === 'recipe' ? 'Tarif' : 'Kayıtlı öğün';
+        const templateMeta = tpl.kind === 'recipe'
+            ? `${tpl.yieldAmount} ${tpl.yieldUnit} hazırlanır · ${tpl.servings} porsiyon · ${tpl.items.length} malzeme`
+            : `${tpl.items.length} besin`;
         const confidenceLabel = tpl.kind === 'recipe'
             ? getNutritionConfidenceLabel(tpl.nutritionConfidence)
             : '';
         const applyControl = tpl.kind === 'recipe'
             ? `
-                <label class="template-portion-control">
-                    <span>Yediğin miktar</span>
-                    <span><input type="number" min="1" max="${tpl.yieldAmount}" step="1" value="${defaultAmount}" data-recipe-amount> ${tpl.yieldUnit}</span>
-                </label>
-                <button class="btn btn-primary btn-sm template-apply" type="button" data-id="${tpl.id}">Günlüğe ekle</button>
+                <div class="template-primary-action">
+                    <label class="template-portion-control">
+                        <span>Yediğin miktar</span>
+                        <span><input type="number" min="1" max="${tpl.yieldAmount}" step="1" value="${defaultAmount}" data-recipe-amount><em>${tpl.yieldUnit}</em></span>
+                    </label>
+                    <button class="btn btn-primary btn-sm template-apply" type="button" data-id="${tpl.id}">Günlüğe ekle</button>
+                </div>
             `
-            : `<button class="btn btn-primary btn-sm template-apply" type="button" data-id="${tpl.id}">Uygula</button>`;
+            : `
+                <div class="template-primary-action">
+                    <button class="btn btn-primary btn-sm template-apply" type="button" data-id="${tpl.id}">Günlüğe ekle</button>
+                </div>
+            `;
 
         return `
-            <div class="template-card" data-id="${tpl.id}">
+            <article class="template-card" data-id="${tpl.id}">
                 <div class="template-card-header">
-                    <div>
+                    <div class="template-card-content">
+                        <div class="template-card-eyebrow">
+                            <span data-kind="${tpl.kind}">${kindLabel}</span>
+                            <small>${templateMeta}${confidenceLabel ? ` · ${confidenceLabel}` : ''}</small>
+                        </div>
                         <div class="template-card-name">${escapeHtml(tpl.name)}</div>
-                        <div class="template-card-info">${kindLabel} · ${tpl.items.length} malzeme${confidenceLabel ? ` · ${confidenceLabel}` : ''}</div>
                         <div class="template-card-nutrition">
-                            <strong>${Math.round(displayNutrition.kcal)} kcal</strong>
-                            <span>P ${Math.round(displayNutrition.protein)}g</span>
-                            <span>K ${Math.round(displayNutrition.carb)}g</span>
-                            <span>Y ${Math.round(displayNutrition.fat)}g</span>
+                            <strong><b>${Math.round(displayNutrition.kcal)}</b><small>kcal</small></strong>
+                            <span data-macro="protein"><small>Protein</small><b>${Math.round(displayNutrition.protein)}g</b></span>
+                            <span data-macro="carb"><small>Karb.</small><b>${Math.round(displayNutrition.carb)}g</b></span>
+                            <span data-macro="fat"><small>Yağ</small><b>${Math.round(displayNutrition.fat)}g</b></span>
                         </div>
                     </div>
                     <div class="template-card-actions">
                         ${applyControl}
-                        <button class="btn btn-secondary btn-sm template-edit" type="button" data-id="${tpl.id}">Düzenle</button>
-                        <button class="btn btn-secondary btn-sm template-delete" type="button" data-id="${tpl.id}">Sil</button>
+                        <div class="template-secondary-actions">
+                            <button class="btn btn-secondary btn-sm template-edit" type="button" data-id="${tpl.id}">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.6-10.6a2 2 0 0 0-2.8-2.8L5.4 16.2 4 20Z"/><path d="m14.8 6.8 2.4 2.4"/></svg>
+                                <span>Düzenle</span>
+                            </button>
+                            <button class="btn btn-secondary btn-sm template-delete" type="button" data-id="${tpl.id}">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13"/></svg>
+                                <span>Sil</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
                 <div class="template-card-items">
-                    ${tpl.items.map(ti => `<span class="template-item-pill">${escapeHtml(ti.item_name)} (${ti.grams}${ti.type === 'drink' ? 'ml' : 'g'})</span>`).join('')}
+                    <small>İçindekiler</small>
+                    <div>${tpl.items.map(ti => `<span class="template-item-pill">${escapeHtml(ti.item_name)} <b>${ti.grams}${ti.type === 'drink' ? 'ml' : 'g'}</b></span>`).join('')}</div>
                 </div>
-            </div>
+            </article>
         `;
     }).join('');
 
@@ -5604,12 +5655,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Yeni mobil düzende kartlar doğal akışta kalır; ek katlama sarmalayıcıları kullanılmaz.
 
     if ('serviceWorker' in navigator) {
-        let reloadingForServiceWorker = false;
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-            if (reloadingForServiceWorker) return;
-            reloadingForServiceWorker = true;
-            window.location.reload();
-        });
         navigator.serviceWorker.register('./sw.js')
             .then(registration => registration.update())
             .catch(error => {

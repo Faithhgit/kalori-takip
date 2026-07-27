@@ -25,6 +25,36 @@ const PAGE_META = {
 const DEFAULT_PAGE = 'dashboard';
 const CATALOG_VIEWS = new Set(['foods', 'templates']);
 
+function setupResponsiveNavigation() {
+    const navigation = document.querySelector('.tabs-container');
+    const headerInner = document.querySelector('.app-header-inner');
+    const headerMeta = document.querySelector('.header-meta');
+    if (!navigation || !headerInner || !headerMeta) return;
+
+    const mobileQuery = window.matchMedia('(max-width: 760px)');
+    const placeNavigation = () => {
+        if (mobileQuery.matches) {
+            if (navigation.parentElement !== document.body) {
+                document.body.appendChild(navigation);
+            }
+            navigation.classList.add('is-mobile-docked');
+            return;
+        }
+
+        if (navigation.parentElement !== headerInner) {
+            headerInner.insertBefore(navigation, headerMeta);
+        }
+        navigation.classList.remove('is-mobile-docked');
+    };
+
+    placeNavigation();
+    if (typeof mobileQuery.addEventListener === 'function') {
+        mobileQuery.addEventListener('change', placeNavigation);
+    } else {
+        mobileQuery.addListener(placeNavigation);
+    }
+}
+
 function setCatalogView(viewName) {
     const nextView = CATALOG_VIEWS.has(viewName) ? viewName : 'templates';
     document.body.dataset.catalogView = nextView;
@@ -98,6 +128,7 @@ function switchTab(pageName) {
 
 window.switchTab = switchTab;
 window.setCatalogView = setCatalogView;
+setupResponsiveNavigation();
 document.querySelectorAll('[data-catalog-view]').forEach(button => {
     button.addEventListener('click', () => setCatalogView(button.dataset.catalogView));
 });

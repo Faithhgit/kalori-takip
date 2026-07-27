@@ -1,4 +1,4 @@
-const CACHE_NAME = 'denge-v55';
+const CACHE_NAME = 'denge-v59';
 const FIREBASE_SDK_ORIGIN = 'https://www.gstatic.com';
 const APP_SHELL = [
     './',
