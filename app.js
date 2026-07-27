@@ -318,7 +318,8 @@ function saveWeightLog(log) {
 }
 
 async function fetchWeightLogFromCloud() {
-    if (!db) return [];
+    if (!db) return null;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return null;
 
     try {
         const q = query(collection(db, WEIGHT_LOG_COLLECTION), orderBy('date'));
@@ -334,7 +335,7 @@ async function fetchWeightLogFromCloud() {
         return normalizeWeightLog(cloudLog);
     } catch (error) {
         console.warn('Cloud weight log could not be loaded:', error);
-        return [];
+        return null;
     }
 }
 
@@ -358,7 +359,17 @@ async function deleteWeightEntryFromCloud(date) {
     if (!db) return false;
 
     try {
-        await deleteDoc(doc(db, WEIGHT_LOG_COLLECTION, date));
+        const canonicalRef = doc(db, WEIGHT_LOG_COLLECTION, date);
+        const matchingSnapshot = await getDocs(query(
+            collection(db, WEIGHT_LOG_COLLECTION),
+            where('date', '==', date)
+        ));
+        const batch = writeBatch(db);
+        batch.delete(canonicalRef);
+        matchingSnapshot.forEach((record) => {
+            if (record.ref.id !== canonicalRef.id) batch.delete(record.ref);
+        });
+        await batch.commit();
         return true;
     } catch (error) {
         console.warn('Cloud weight log could not be deleted:', error);
@@ -373,33 +384,12 @@ async function initializeWeightLog() {
     if (!db) return;
 
     const cloudLog = await fetchWeightLogFromCloud();
+    if (cloudLog === null) return;
 
-    if (cloudLog.length === 0 && localLog.length > 0) {
-        for (const entry of localLog) {
-            await upsertWeightEntryToCloud(entry);
-        }
-        return;
-    }
-
-    if (cloudLog.length > 0) {
-        const mergedByDate = new Map();
-        cloudLog.forEach(entry => mergedByDate.set(entry.date, entry));
-        localLog.forEach(entry => {
-            if (!mergedByDate.has(entry.date)) {
-                mergedByDate.set(entry.date, entry);
-            }
-        });
-
-        const merged = [...mergedByDate.values()].sort((a, b) => a.date.localeCompare(b.date));
-        weightLogCache = merged;
-        saveWeightLogToLocal(merged);
-
-        for (const entry of localLog) {
-            if (!cloudLog.some(c => c.date === entry.date)) {
-                await upsertWeightEntryToCloud(entry);
-            }
-        }
-    }
+    // Firebase bağlıyken bulut kayıtları kaynak kabul edilir. Eski yerel önbelleğin
+    // buluttan silinmiş bir ölçümü yeniden oluşturmasını özellikle engeller.
+    weightLogCache = cloudLog;
+    saveWeightLogToLocal(cloudLog);
 }
 
 function getMacroPreferencesFormState() {
@@ -663,14 +653,14 @@ function renderWeightSection() {
     listEl.querySelectorAll('.weight-log-delete').forEach(btn => {
         btn.addEventListener('click', async () => {
             const date = btn.dataset.date;
-            const log = loadWeightLog().filter(e => e.date !== date);
-            saveWeightLog(log);
-            renderWeightSection();
-
-            const cloudDeleted = await deleteWeightEntryFromCloud(date);
-            if (!cloudDeleted && db) {
+            if (db && !await deleteWeightEntryFromCloud(date)) {
                 showError('Kilo kaydı buluttan silinemedi. Bağlantını kontrol edip yeniden dene.');
+                return;
             }
+
+            saveWeightLog(loadWeightLog().filter(e => e.date !== date));
+            renderWeightSection();
+            showError('Kilo kaydı kalıcı olarak silindi.', 'success');
         });
     });
 
@@ -1173,25 +1163,65 @@ function applyFuturePreviewData() {
     removeFuturePreviewQueryParam();
 }
 
-function showError(message, type = 'error') {
+function showError(message, type = 'error', options = {}) {
     const errorEl = document.getElementById('errorMessage');
     if (!errorEl) {
-        pendingUiMessage = { message, type };
+        pendingUiMessage = { message, type, options };
         return;
     }
 
     pendingUiMessage = null;
     toastSequence += 1;
+    const currentSequence = toastSequence;
     if (toastTimer) window.clearTimeout(toastTimer);
-    errorEl.textContent = message;
+    errorEl.replaceChildren();
     errorEl.classList.toggle('success', type === 'success');
     errorEl.classList.remove('is-leaving');
-    errorEl.style.display = 'block';
+    errorEl.setAttribute('role', type === 'success' ? 'status' : 'alert');
+    errorEl.setAttribute('aria-live', type === 'success' ? 'polite' : 'assertive');
+
+    const icon = document.createElement('span');
+    icon.className = 'toast-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = type === 'success' ? '✓' : '!';
+
+    const copy = document.createElement('span');
+    copy.className = 'toast-copy';
+    const title = document.createElement('strong');
+    title.textContent = type === 'success' ? 'Tamamlandı' : 'Bir sorun oldu';
+    const detail = document.createElement('span');
+    detail.textContent = message;
+    copy.append(title, detail);
+    errorEl.append(icon, copy);
+
+    if (options.actionLabel && typeof options.onAction === 'function') {
+        const action = document.createElement('button');
+        action.type = 'button';
+        action.className = 'toast-action';
+        action.textContent = options.actionLabel;
+        action.addEventListener('click', () => {
+            clearError();
+            options.onAction();
+        });
+        errorEl.append(action);
+    }
+
+    errorEl.style.display = 'flex';
     void errorEl.offsetWidth;
     errorEl.classList.add('is-visible');
     toastTimer = window.setTimeout(() => {
-        if (errorEl.textContent === message) clearError();
-    }, type === 'success' ? 3200 : 4800);
+        if (toastSequence === currentSequence) clearError();
+    }, Number(options.duration) || (type === 'success' ? 4200 : 5200));
+}
+
+function showLogAddedNotification(message) {
+    showError(message, 'success', {
+        actionLabel: 'Günlüğü gör',
+        duration: 5600,
+        onAction: () => {
+            if (typeof window.switchTab === 'function') window.switchTab('logs');
+        }
+    });
 }
 
 function clearError() {
@@ -1209,7 +1239,7 @@ function clearError() {
     errorEl.classList.add('is-leaving');
     window.setTimeout(() => {
         if (toastSequence !== clearingSequence) return;
-        errorEl.textContent = '';
+        errorEl.replaceChildren();
         errorEl.classList.remove('success', 'is-leaving');
         errorEl.style.display = 'none';
     }, 210);
@@ -1735,10 +1765,11 @@ async function addLog(item, grams, logDate = getToday(), mealType = 'snack', dis
         document.getElementById('calculationPreview').style.display = 'none';
         document.getElementById('portionPresets').style.display = 'none';
         selectedItem = null;
-        
+        return true;
     } catch (error) {
         console.error('Error adding log:', error);
         showError('Besin günlüğe eklenemedi. Lütfen yeniden dene.');
+        return false;
     }
 }
 
@@ -1746,6 +1777,7 @@ async function deleteLog(logId) {
     try {
         await deleteDoc(doc(db, 'daily_logs', logId));
         await refreshDailyLogViews();
+        showError('Günlük kaydı silindi.', 'success');
     } catch (error) {
         console.error('Error deleting log:', error);
         showError('Kayıt silinemedi. Lütfen yeniden dene.');
@@ -3525,9 +3557,9 @@ function renderTemplateList() {
                     <span>Yediğin miktar</span>
                     <span><input type="number" min="1" max="${tpl.yieldAmount}" step="1" value="${defaultAmount}" data-recipe-amount> ${tpl.yieldUnit}</span>
                 </label>
-                <button class="btn btn-primary btn-sm template-apply" data-id="${tpl.id}">Günlüğe ekle</button>
+                <button class="btn btn-primary btn-sm template-apply" type="button" data-id="${tpl.id}">Günlüğe ekle</button>
             `
-            : `<button class="btn btn-primary btn-sm template-apply" data-id="${tpl.id}">Uygula</button>`;
+            : `<button class="btn btn-primary btn-sm template-apply" type="button" data-id="${tpl.id}">Uygula</button>`;
 
         return `
             <div class="template-card" data-id="${tpl.id}">
@@ -3544,8 +3576,8 @@ function renderTemplateList() {
                     </div>
                     <div class="template-card-actions">
                         ${applyControl}
-                        <button class="btn btn-secondary btn-sm template-edit" data-id="${tpl.id}">Düzenle</button>
-                        <button class="btn btn-secondary btn-sm template-delete" data-id="${tpl.id}">Sil</button>
+                        <button class="btn btn-secondary btn-sm template-edit" type="button" data-id="${tpl.id}">Düzenle</button>
+                        <button class="btn btn-secondary btn-sm template-delete" type="button" data-id="${tpl.id}">Sil</button>
                     </div>
                 </div>
                 <div class="template-card-items">
@@ -3614,9 +3646,7 @@ async function applyTemplate(templateId, recipeAmount = 0) {
     }
 
     await refreshDailyLogViews();
-    if (typeof window.switchTab === 'function') {
-        window.switchTab('logs');
-    }
+    showLogAddedNotification(`${tpl.name}, ${MEAL_LABELS[mealType]} öğününe eklendi.`);
 }
 
 async function deleteTemplate(templateId) {
@@ -4346,7 +4376,7 @@ async function refreshDemoDataViews({ restoreLocalWeightBackup = null, removedWe
 
     const localWeights = loadWeightLogFromLocal();
     const cloudWeights = await fetchWeightLogFromCloud();
-    const mergedWeights = new Map(cloudWeights.map(entry => [entry.date, entry]));
+    const mergedWeights = new Map((cloudWeights || []).map(entry => [entry.date, entry]));
     localWeights.forEach(entry => {
         if (!mergedWeights.has(entry.date)) mergedWeights.set(entry.date, entry);
     });
@@ -5351,7 +5381,7 @@ async function commitAssistantAdd(result) {
         source: externalItem?.source,
         undo: true
     });
-    showError(`${entries.length} besin ${MEAL_LABELS[mealType]} öğününe eklendi.`, 'success');
+    showLogAddedNotification(`${entries.length} besin ${MEAL_LABELS[mealType]} öğününe eklendi.`);
 }
 
 async function undoLastAssistantAdd() {
@@ -5481,8 +5511,8 @@ function initializeAssistantUI() {
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
     if (pendingUiMessage) {
-        const { message, type } = pendingUiMessage;
-        showError(message, type);
+        const { message, type, options } = pendingUiMessage;
+        showError(message, type, options);
     }
     updateConnectionIndicator();
     window.addEventListener('online', () => updateConnectionIndicator('online'));
@@ -5764,7 +5794,7 @@ document.addEventListener('DOMContentLoaded', () => {
             pendingLogItems = [];
             renderPendingLogItems();
             await refreshDailyLogViews();
-            showError(`${queuedSnapshot.length} besin günlüğe eklendi.`, 'success');
+            showLogAddedNotification(`${queuedSnapshot.length} besin ${MEAL_LABELS[mealType]} öğününe eklendi.`);
         } catch (error) {
             console.error('Batch log add failed:', error);
             showError('Toplu ekleme tamamlanamadı. Liste korunuyor.');
@@ -5850,10 +5880,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 drinks.push(customItem);
             }
 
-            await addLog(customItem, portion.baseAmount, logDate, mealType, {
+            const added = await addLog(customItem, portion.baseAmount, logDate, mealType, {
                 amount: portion.displayAmount,
                 unit: portion.unit
             });
+            if (!added) return;
 
             // Clear custom form
             document.getElementById('customName').value = '';
@@ -5865,6 +5896,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('customSugar').value = '';
             document.getElementById('customSodium').value = '';
             document.getElementById('customConfidence').value = 'verified';
+            showLogAddedNotification(`${customName}, ${MEAL_LABELS[mealType]} öğününe eklendi.`);
         } else {
             // Handle preset item
             if (!selectedItem) {
@@ -5883,10 +5915,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             if (!mealType) return;
 
-            await addLog(selectedItem, portion.baseAmount, logDate, mealType, {
+            const itemName = selectedItem.name;
+            const added = await addLog(selectedItem, portion.baseAmount, logDate, mealType, {
                 amount: portion.displayAmount,
                 unit: portion.unit
             });
+            if (added) {
+                showLogAddedNotification(`${itemName}, ${MEAL_LABELS[mealType]} öğününe eklendi.`);
+            }
         }
     });
     
@@ -6207,6 +6243,11 @@ document.addEventListener('DOMContentLoaded', () => {
             showError('Kilo kaydı için bir tarih seç.');
             return;
         }
+        if (db && !await upsertWeightEntryToCloud({ date, weight })) {
+            showError('Kilo kaydı buluta gönderilemedi. Bağlantını kontrol edip yeniden dene.');
+            return;
+        }
+
         const log = loadWeightLog();
         // Aynı tarih varsa güncelle
         const idx = log.findIndex(e => e.date === date);
@@ -6218,11 +6259,7 @@ document.addEventListener('DOMContentLoaded', () => {
         saveWeightLog(log);
         document.getElementById('weightInput').value = '';
         renderWeightSection();
-
-        const cloudSaved = await upsertWeightEntryToCloud({ date, weight });
-        if (!cloudSaved && db) {
-            showError('Kilo kaydı buluta gönderilemedi. Bağlantını kontrol edip yeniden dene.');
-        }
+        showError('Kilo kaydı kaydedildi.', 'success');
     });
 
     renderWeightSection();
