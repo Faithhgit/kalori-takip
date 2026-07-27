@@ -101,4 +101,26 @@ assert.match(
     'Asistan token kullanımı Firebase üzerinde biriktirilmeli.'
 );
 
+assert.match(
+    app,
+    /where\('date',\s*'==',\s*date\)/,
+    'Weight deletion should remove every cloud copy for the selected date.'
+);
+const applyTemplateSource = app.slice(
+    app.indexOf('async function applyTemplate'),
+    app.indexOf('async function deleteTemplate')
+);
+assert.doesNotMatch(
+    applyTemplateSource,
+    /switchTab\('logs'\)/,
+    'Adding a saved meal should not force navigation to the diary.'
+);
+assert.ok(
+    [...app.matchAll(/showLogAddedNotification\(/g)].length >= 5,
+    'All diary add flows should use the shared success notification.'
+);
+assert.match(css, /\.toast-action\s*\{/, 'The success notification should provide a diary shortcut.');
+assert.match(html, /styles\.css\?v=55/, 'The current stylesheet version should bypass stale app caches.');
+assert.match(html, /app\.js\?v=55/, 'The current application version should bypass stale app caches.');
+
 console.log('ui structure audit passed');
