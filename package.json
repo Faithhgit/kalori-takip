@@ -1,0 +1,13 @@
+{
+  "name": "kalori-takip",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/nutrition.test.mjs && node tests/features.test.mjs && node scripts/audit-ui.mjs",
+    "audit:data": "node scripts/audit-data.mjs",
+    "test:ui": "playwright test tests/mobile.spec.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.0"
+  }
+}
