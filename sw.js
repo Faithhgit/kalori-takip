@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kalori-takip-v28';
+const CACHE_NAME = 'denge-v34';
 const FIREBASE_SDK_ORIGIN = 'https://www.gstatic.com';
 const APP_SHELL = [
     './',
@@ -9,6 +9,7 @@ const APP_SHELL = [
     './firebase-config.js',
     './lib/nutrition.js',
     './lib/portion.js',
+    './lib/planning.js',
     './lib/insights.js',
     './lib/schema.js',
     './lib/firestore-store.js',
@@ -45,6 +46,25 @@ self.addEventListener('fetch', event => {
     if (event.request.method !== 'GET') return;
     const url = new URL(event.request.url);
     if (url.origin !== self.location.origin && url.origin !== FIREBASE_SDK_ORIGIN) return;
+
+    if (event.request.mode === 'navigate') {
+        event.respondWith(
+            fetch(event.request)
+                .then(async response => {
+                    if (response.ok) {
+                        const cache = await caches.open(CACHE_NAME);
+                        await cache.put(event.request, response.clone());
+                    }
+                    return response;
+                })
+                .catch(async () =>
+                    (await caches.match(event.request))
+                    || (await caches.match('./index.html'))
+                    || Response.error()
+                )
+        );
+        return;
+    }
 
     event.respondWith(
         caches.match(event.request).then(cached => {

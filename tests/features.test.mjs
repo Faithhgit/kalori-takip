@@ -61,6 +61,16 @@ assert.deepEqual(calculateWeeklyBudget(logs, 2200, dates), {
     target: 4400, consumed: 4400, remaining: 0, percentage: 100
 });
 assert.equal(calculateMacroAdherence(logs, { protein: 150, carb: 250, fat: 80 }, dates).protein.percentage, 100);
+assert.equal(
+    calculateMacroAdherence(
+        logs,
+        date => date === dates[0]
+            ? { protein: 140, carb: 230, fat: 70 }
+            : { protein: 160, carb: 270, fat: 90 },
+        dates
+    ).protein.percentage,
+    100
+);
 assert.equal(getCalorieStatus(2200, 2200), 'on-target');
 
 const values = new Map([['recentItems', '[1]']]);
@@ -70,6 +80,7 @@ const storage = {
 };
 assert.deepEqual(runLocalMigrations(storage), { from: 1, to: APP_SCHEMA_VERSION, migrated: true });
 assert.equal(values.get('recentItemsV2'), '[1]');
+assert.match(values.get('macroPreferences'), /protein_focused/);
 
 const normalizedProfile = normalizeProfile({
     gender: 'male',
@@ -80,12 +91,8 @@ const normalizedProfile = normalizeProfile({
     trainingDays: 3,
     steps: 8000,
     goalMode: 'cut_moderate',
-    targetWeight: 75,
-    trainingWeekdays: '1,3,5',
-    trainingDayKcal: 2400,
-    restDayKcal: 2100
+    targetWeight: 75
 });
-assert.deepEqual(normalizedProfile.trainingWeekdays, [1, 3, 5]);
 assert.equal(normalizedProfile.targetWeight, 75);
 assert.equal(validateCompleteProfile(normalizedProfile), '');
 

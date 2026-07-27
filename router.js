@@ -73,7 +73,7 @@ function renderPage(pageName, options = {}) {
 
     const meta = PAGE_META[nextPage];
     document.getElementById('pageTitle').textContent = meta.title;
-    document.title = `${meta.title} — Kalori`;
+    document.title = `${meta.title} — Denge`;
 
     if (nextPage === 'catalog') {
         if (typeof window.renderCatalog === 'function') window.renderCatalog();

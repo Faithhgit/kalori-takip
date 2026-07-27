@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#f6f8f7">
-    <title>Kalori — Günlük Beslenme Takibi</title>
+    <title>Denge — Beslenme ve Makro Takibi</title>
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -17,11 +18,11 @@
         <div class="app-header-inner">
             <div class="brand">
                 <div class="brand-mark" aria-hidden="true">
-                    <svg viewBox="0 0 32 32"><path d="M16 27c6 0 10-4.8 10-11.1C26 9.8 22 6 16 6S6 9.8 6 15.9C6 22.2 10 27 16 27Z"/><path d="M16 7c.2-3 2.2-5 5.2-5"/><path d="M10.5 15.5c2.7.1 4.3 1.5 5.5 4.1 1.2-2.6 2.8-4 5.5-4.1"/></svg>
+                    <svg viewBox="0 0 32 32"><path d="M16 27c6 0 10-4.8 10-11.1C26 9.8 22 6 16 6S6 9.8 6 15.9C6 22.2 10 27 16 27Z"/><path d="M16 7c.2-3 2.2-5 5.2-5"/><path d="m11.5 16.4 3.1 3.2 6.4-7"/></svg>
                 </div>
                 <div class="brand-copy">
-                    <span class="brand-name">Kalori</span>
-                    <span class="brand-tagline">Kalori ve makro takibi</span>
+                    <span class="brand-name">Denge</span>
+                    <span class="brand-tagline">Beslenme ve makro takibi</span>
                 </div>
             </div>
             <nav class="tabs-container" aria-label="Ana navigasyon">
@@ -51,14 +52,12 @@
                 </button>
             </nav>
             <div class="header-meta">
-                <div class="sync-indicator" id="syncIndicator" role="status" aria-live="polite">
-                    <span aria-hidden="true"></span>
-                    <strong>Bağlı</strong>
-                </div>
                 <div class="top-date" id="dateDisplay"></div>
                 <div class="floating-actions">
-                    <button class="icon-btn" id="darkModeBtn" type="button" title="Koyu tema">Koyu tema</button>
-                    <button class="icon-btn icon-btn-primary" id="settingsBtn" type="button" title="Hedefler ve profil">Ayarlar</button>
+                    <button class="icon-btn icon-btn-only" id="darkModeBtn" type="button" title="Koyu temaya geç" aria-label="Koyu temaya geç"></button>
+                    <button class="icon-btn icon-btn-primary icon-btn-only" id="settingsBtn" type="button" title="Ayarları aç" aria-label="Ayarları aç">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg>
+                    </button>
                 </div>
             </div>
         </div>
@@ -71,6 +70,16 @@
                 <button class="modal-close" id="closeSettings" type="button" aria-label="Ayarları kapat">✕</button>
             </div>
             <div class="modal-body">
+                <div class="settings-connection">
+                    <div>
+                        <strong>Veri bağlantısı</strong>
+                        <span>Firebase senkronizasyon durumu</span>
+                    </div>
+                    <div class="sync-indicator" id="syncIndicator" role="status" aria-live="polite">
+                        <span aria-hidden="true"></span>
+                        <strong>Bağlı</strong>
+                    </div>
+                </div>
                 <!-- Profil Bilgileri -->
                 <div class="settings-section-title">Sana özel plan</div>
                 <div class="settings-row">
@@ -125,16 +134,9 @@
                         <option value="bulk">Kas kazanımı — %10 fazla</option>
                     </select>
                 </div>
-                <div class="settings-row">
-                    <div class="settings-group settings-half">
-                        <label for="profileTargetWeight">Hedef kilo (kg)</label>
-                        <input type="number" id="profileTargetWeight" min="35" max="250" step="0.1" placeholder="70">
-                    </div>
-                    <div class="settings-group settings-half">
-                        <label for="profileTrainingWeekdays">Antrenman günleri</label>
-                        <input type="text" id="profileTrainingWeekdays" placeholder="Örn. 1,3,5" aria-describedby="trainingWeekdaysHelp">
-                        <small id="trainingWeekdaysHelp">Pazartesi 1, pazar 7</small>
-                    </div>
+                <div class="settings-group">
+                    <label for="profileTargetWeight">Hedef kilo (kg)</label>
+                    <input type="number" id="profileTargetWeight" min="35" max="250" step="0.1" placeholder="70">
                 </div>
                 <button class="btn btn-primary" id="calculateGoals" type="button" style="width:100%; margin-bottom: 12px;">Planımı hesapla</button>
 
@@ -148,34 +150,59 @@
 
                 <!-- Hedef Değerleri -->
                 <div class="settings-section-title">Günlük hedeflerin</div>
+                <div class="settings-group macro-strategy-field">
+                    <label for="macroStrategy">Makro dağılımı</label>
+                    <select id="macroStrategy">
+                        <option value="protein_focused">Protein odaklı</option>
+                        <option value="balanced">Dengeli</option>
+                        <option value="lower_carb">Daha düşük karbonhidrat</option>
+                        <option value="manual">Manuel oran</option>
+                    </select>
+                </div>
+                <div class="macro-ratio-settings" aria-describedby="macroRatioStatus">
+                    <div class="settings-group">
+                        <label for="macroProteinPct">Protein (%)</label>
+                        <input type="number" id="macroProteinPct" min="10" max="60" step="1" value="35">
+                    </div>
+                    <div class="settings-group">
+                        <label for="macroCarbPct">Karbonhidrat (%)</label>
+                        <input type="number" id="macroCarbPct" min="10" max="60" step="1" value="35">
+                    </div>
+                    <div class="settings-group">
+                        <label for="macroFatPct">Yağ (%)</label>
+                        <input type="number" id="macroFatPct" min="10" max="60" step="1" value="30">
+                    </div>
+                </div>
+                <p class="macro-ratio-status" id="macroRatioStatus">Toplam %100</p>
                 <div class="target-settings-grid">
                     <div class="settings-group">
                         <label for="targetKcal">Enerji (kcal)</label>
-                        <input type="number" id="targetKcal" min="1000" max="5000" step="100" value="2200">
+                        <input type="number" id="targetKcal" min="1000" max="5000" step="50" value="2200">
                     </div>
                     <div class="settings-group">
-                        <label for="targetProtein">Protein (g)</label>
-                        <input type="number" id="targetProtein" min="50" max="300" step="10" value="150">
+                        <label for="targetProtein">Protein hedefi (g)</label>
+                        <input type="number" id="targetProtein" min="50" max="500" step="1" value="150" readonly>
                     </div>
                     <div class="settings-group">
-                        <label for="targetCarb">Karbonhidrat (g)</label>
-                        <input type="number" id="targetCarb" min="50" max="500" step="10" value="250">
+                        <label for="targetCarb">Karbonhidrat hedefi (g)</label>
+                        <input type="number" id="targetCarb" min="50" max="750" step="1" value="250" readonly>
                     </div>
                     <div class="settings-group">
-                        <label for="targetFat">Yağ (g)</label>
-                        <input type="number" id="targetFat" min="20" max="200" step="5" value="70">
+                        <label for="targetFat">Yağ hedefi (g)</label>
+                        <input type="number" id="targetFat" min="20" max="300" step="1" value="70" readonly>
                     </div>
                 </div>
                 <div class="settings-row">
                     <div class="settings-group settings-half">
                         <label for="trainingDayKcal">Antrenman günü enerjisi</label>
-                        <input type="number" id="trainingDayKcal" min="1000" max="5000" step="50" placeholder="Günlük hedef">
+                        <input type="number" id="trainingDayKcal" min="1000" max="5000" step="5" placeholder="Günlük hedef" readonly>
                     </div>
                     <div class="settings-group settings-half">
                         <label for="restDayKcal">Dinlenme günü enerjisi</label>
-                        <input type="number" id="restDayKcal" min="1000" max="5000" step="50" placeholder="Günlük hedef">
+                        <input type="number" id="restDayKcal" min="1000" max="5000" step="5" placeholder="Günlük hedef" readonly>
                     </div>
                 </div>
+                <p class="day-target-note">Haftalık ortalama enerji hedefin korunarak otomatik hesaplanır.</p>
                 <hr class="settings-divider">
                 <div class="settings-reset-box">
                     <div class="settings-section-title">Verilerin</div>
@@ -292,6 +319,16 @@
             </div>
         </header>
         <div class="main-content">
+            <button class="dashboard-training-toggle page-active" id="dashboardTrainingToggle" data-page="dashboard" type="button" aria-pressed="false">
+                <span class="dashboard-training-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M6 8v8M3.5 10v4M18 8v8M20.5 10v4M6 12h12"/></svg>
+                </span>
+                <span class="dashboard-training-copy">
+                    <strong id="dashboardTrainingLabel">Bugün antrenman yaptım</strong>
+                    <span id="dashboardTrainingMeta">Dinlenme hedefi aktif</span>
+                </span>
+                <span class="dashboard-training-state" id="dashboardTrainingState">Dinlenme</span>
+            </button>
 
             <!-- Left Column -->
             <div class="left-column">
@@ -374,6 +411,7 @@
                             </div>
                         </div>
                     </div>
+                    <p class="macro-guidance" id="macroGuidance"></p>
                 </section>
 
                 <!-- Kilo Takibi Card -->
@@ -444,13 +482,6 @@
 
             <!-- Right Column -->
             <div class="right-column">
-                <!-- Motivation Card -->
-                <section class="motivation-card page-active" data-page="dashboard">
-                    <div class="motivation-text" id="motivationText">
-                        Günün önerisi hazırlanıyor…
-                    </div>
-                </section>
-
                 <!-- Chart Section -->
                 <section class="chart-section" data-page="progress">
                     <h2>Haftalık görünüm</h2>
@@ -523,37 +554,6 @@
                             </div>
                             <div class="logs-count" id="logsCount">0 kayıt</div>
                         </div>
-                        <details class="daily-checkin" id="dailyCheckin">
-                            <summary>
-                                <span>
-                                    <strong>Günün kısa değerlendirmesi</strong>
-                                    <small>İsteğe bağlı · <span id="dailyCheckinDate">Bugün</span></small>
-                                </span>
-                                <span class="daily-checkin-summary-status" id="dailyCheckinSummaryStatus">Ekle</span>
-                            </summary>
-                            <div class="daily-checkin-content">
-                                <div class="daily-checkin-heading">
-                                    <span id="dailyCheckinStatus">Henüz kaydedilmedi</span>
-                                    <button class="day-complete-btn" id="completeDayBtn" type="button">Günü tamamla</button>
-                                </div>
-                                <label for="dailyNote">Not <span>isteğe bağlı</span></label>
-                                <textarea id="dailyNote" rows="2" maxlength="500" placeholder="Bugün nasıl geçti?"></textarea>
-                                <div class="daily-rating-grid">
-                                    <label for="dailyHunger">
-                                        <span>Açlık <output id="dailyHungerValue">3/5</output></span>
-                                        <input type="range" id="dailyHunger" min="1" max="5" value="3">
-                                    </label>
-                                    <label for="dailyEnergy">
-                                        <span>Enerji <output id="dailyEnergyValue">3/5</output></span>
-                                        <input type="range" id="dailyEnergy" min="1" max="5" value="3">
-                                    </label>
-                                </div>
-                                <div class="daily-checkin-footer">
-                                    <span>Bu alanı doldurmak zorunda değilsin.</span>
-                                    <button class="btn btn-secondary btn-sm" id="saveDailyCheckin" type="button">Kaydet</button>
-                                </div>
-                            </div>
-                        </details>
                         <div class="logs-container" id="logsContainer">
                             <div class="logs-loading">Günlüğün hazırlanıyor…</div>
                         </div>
@@ -650,6 +650,14 @@
                                         </div>
                                     </div>
                                 </details>
+                                <div class="form-group custom-confidence-field">
+                                    <label for="customConfidence">Değerlerin kaynağı</label>
+                                    <select id="customConfidence">
+                                        <option value="verified">Ürün etiketi veya tartılmış değer</option>
+                                        <option value="personal">Kendi tarifim</option>
+                                        <option value="estimated">Yaklaşık değer</option>
+                                    </select>
+                                </div>
                             </div>
 
                             <!-- Amount Input -->
@@ -707,6 +715,7 @@
                                         <div class="preview-value" id="previewFat">0g</div>
                                     </div>
                                 </div>
+                                <p class="nutrition-confidence-note" id="nutritionConfidenceNote"></p>
                             </div>
 
                             <div class="add-actions">
@@ -794,7 +803,30 @@
                                     <input type="number" id="templateServings" min="1" max="100" step="1" value="1">
                                 </div>
                             </div>
+                            <div class="recipe-settings" id="recipeSettings" hidden>
+                                <div class="settings-row">
+                                    <div class="settings-group settings-half">
+                                        <label for="templateYield">Hazırlanınca toplam miktar</label>
+                                        <input type="number" id="templateYield" min="1" max="100000" step="1" placeholder="Örneğin 850">
+                                    </div>
+                                    <div class="settings-group settings-half">
+                                        <label for="templateYieldUnit">Birim</label>
+                                        <select id="templateYieldUnit">
+                                            <option value="g">Gram</option>
+                                            <option value="ml">Mililitre</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="settings-group">
+                                    <label for="templateConfidence">Tarif bilgisi</label>
+                                    <select id="templateConfidence">
+                                        <option value="personal">Malzemelerini kendim girdim</option>
+                                        <option value="estimated">Yaklaşık malzemeler kullandım</option>
+                                    </select>
+                                </div>
+                            </div>
                             <div class="template-items-list" id="templateItemsList"></div>
+                            <div class="template-nutrition-preview" id="templateNutritionPreview"></div>
                             <div class="template-add-item">
                                 <div class="form-group" style="margin-bottom: 8px;">
                                     <label>Besin türü</label>

@@ -27,9 +27,6 @@ import {
     calcBMR,
     calcTDEE,
     calculateNutrition,
-    suggestCarb,
-    suggestFat,
-    suggestProtein,
     sumLogs
 } from './lib/nutrition.js';
 import {
@@ -41,6 +38,20 @@ import {
     normalizePortionMemory,
     recordPortionUsage
 } from './lib/portion.js';
+import {
+    DEFAULT_MACRO_PREFERENCES,
+    MACRO_PRESETS,
+    calculateDayTypeEnergyTargets,
+    calculateGoalTarget,
+    calculateMacroTargets,
+    calculateRecipeNutrition,
+    getMacroGuidance,
+    getNutritionConfidenceLabel,
+    inferNutritionConfidence,
+    normalizeMacroPreferences,
+    resolveDayEnergyTarget,
+    sumNutrition
+} from './lib/planning.js';
 import {
     calculateMacroAdherence,
     calculateWeeklyBudget,
@@ -60,6 +71,7 @@ runLocalMigrations(localStorage);
 
 // Constants - Load from localStorage or defaults
 const TARGETS_KEY = 'calorieTargets';
+const MACRO_PREFERENCES_KEY = 'macroPreferences';
 const SETTINGS_COLLECTION = 'app_settings';
 const SETTINGS_DOC_ID = 'default_settings';
 const TEMPLATES_SETTINGS_DOC_ID = 'meal_templates';
@@ -67,20 +79,46 @@ const LOG_NUTRITION_REPAIR_KEY = 'logNutritionRepairV3';
 const LOCK_TARGETS_TO_FIXED_PLAN = false;
 const DEFAULT_TARGETS = Object.freeze({
     kcal: 2320,
-    protein: 150,
-    carb: 250,
-    fat: 80
+    protein: 203,
+    carb: 203,
+    fat: 77
 });
 const TARGET_RANGES = Object.freeze({
     kcal: [1000, 5000],
-    protein: [50, 300],
-    carb: [50, 500],
-    fat: [20, 200]
+    protein: [50, 500],
+    carb: [50, 750],
+    fat: [20, 300]
 });
+let MACRO_PREFERENCES = loadMacroPreferences();
 let TARGETS = loadTargets();
 
 function getDefaultTargets() {
     return { ...DEFAULT_TARGETS };
+}
+
+function loadMacroPreferences() {
+    try {
+        return normalizeMacroPreferences(JSON.parse(localStorage.getItem(MACRO_PREFERENCES_KEY)));
+    } catch {
+        return { ...DEFAULT_MACRO_PREFERENCES };
+    }
+}
+
+function saveMacroPreferences(preferences) {
+    MACRO_PREFERENCES = normalizeMacroPreferences(preferences);
+    localStorage.setItem(MACRO_PREFERENCES_KEY, JSON.stringify(MACRO_PREFERENCES));
+    return MACRO_PREFERENCES;
+}
+
+function targetsFromEnergy(kcal, preferences = MACRO_PREFERENCES) {
+    const safeKcal = Math.min(
+        TARGET_RANGES.kcal[1],
+        Math.max(TARGET_RANGES.kcal[0], Math.round(Number(kcal) || DEFAULT_TARGETS.kcal))
+    );
+    return {
+        kcal: safeKcal,
+        ...calculateMacroTargets(safeKcal, preferences)
+    };
 }
 
 function normalizeTargets(targets) {
@@ -105,14 +143,16 @@ function loadTargets() {
 
     try {
         const stored = JSON.parse(localStorage.getItem(TARGETS_KEY));
-        return normalizeTargets(stored);
+        const normalized = normalizeTargets(stored);
+        return targetsFromEnergy(normalized.kcal);
     } catch (error) {
-        return getDefaultTargets();
+        return targetsFromEnergy(DEFAULT_TARGETS.kcal);
     }
 }
 
 function saveTargets(targets) {
-    TARGETS = normalizeTargets(targets);
+    const normalized = normalizeTargets(targets);
+    TARGETS = targetsFromEnergy(normalized.kcal);
     localStorage.setItem(TARGETS_KEY, JSON.stringify(TARGETS));
     updateSummary();
     renderChart();
@@ -145,32 +185,43 @@ async function loadSettingsFromCloud() {
 
         const data = snap.data() || {};
 
+        if (data.macro_preferences && typeof data.macro_preferences === 'object') {
+            saveMacroPreferences(data.macro_preferences);
+        }
+
         if (!LOCK_TARGETS_TO_FIXED_PLAN && data.targets && typeof data.targets === 'object') {
-            const nextTargets = {
-                kcal: Number(data.targets.kcal) || TARGETS.kcal,
-                protein: Number(data.targets.protein) || TARGETS.protein,
-                carb: Number(data.targets.carb) || TARGETS.carb,
-                fat: Number(data.targets.fat) || TARGETS.fat
-            };
+            const nextTargets = targetsFromEnergy(Number(data.targets.kcal) || TARGETS.kcal);
             saveTargets(nextTargets);
-            document.getElementById('targetKcalDisplay').textContent = nextTargets.kcal;
+            document.getElementById('targetKcalDisplay').textContent = TARGETS.kcal;
         }
 
         if (data.profile && typeof data.profile === 'object') {
             saveProfile(data.profile);
         }
+
+        if (data.daily_meta && typeof data.daily_meta === 'object') {
+            Object.entries(data.daily_meta).forEach(([date, meta]) => {
+                dailyMetaCache.set(date, meta && typeof meta === 'object' ? meta : {});
+            });
+            renderTodayTrainingToggle();
+        }
+
+        updateSummary();
+        renderChart();
+        renderProgressInsights();
     } catch (error) {
         console.warn('Cloud settings could not be loaded:', error);
     }
 }
 
-async function saveSettingsToCloud(targets, profile) {
+async function saveSettingsToCloud(targets, profile, macroPreferences = MACRO_PREFERENCES) {
     if (!db) return false;
 
     try {
         const settingsRef = doc(db, SETTINGS_COLLECTION, SETTINGS_DOC_ID);
         await setDoc(settingsRef, {
-            targets: normalizeTargets(targets),
+            targets: targetsFromEnergy(normalizeTargets(targets).kcal, macroPreferences),
+            macro_preferences: normalizeMacroPreferences(macroPreferences),
             profile,
             updated_at: serverTimestamp()
         }, { merge: true });
@@ -323,6 +374,85 @@ async function initializeWeightLog() {
     }
 }
 
+function getMacroPreferencesFormState() {
+    return {
+        strategy: document.getElementById('macroStrategy')?.value || MACRO_PREFERENCES.strategy,
+        proteinPct: Number(document.getElementById('macroProteinPct')?.value),
+        carbPct: Number(document.getElementById('macroCarbPct')?.value),
+        fatPct: Number(document.getElementById('macroFatPct')?.value)
+    };
+}
+
+function areMacroPreferencesValid(preferences) {
+    if (preferences.strategy !== 'manual') return Boolean(MACRO_PRESETS[preferences.strategy]);
+    const values = [preferences.proteinPct, preferences.carbPct, preferences.fatPct];
+    return values.every(value => Number.isFinite(value) && value >= 10 && value <= 60)
+        && Math.round(values.reduce((sum, value) => sum + value, 0)) === 100;
+}
+
+function renderMacroPreferencesForm(preferences = MACRO_PREFERENCES) {
+    const normalized = normalizeMacroPreferences(preferences);
+    const strategyInput = document.getElementById('macroStrategy');
+    if (!strategyInput) return;
+
+    strategyInput.value = normalized.strategy;
+    document.getElementById('macroProteinPct').value = normalized.proteinPct;
+    document.getElementById('macroCarbPct').value = normalized.carbPct;
+    document.getElementById('macroFatPct').value = normalized.fatPct;
+    updateMacroTargetFields();
+}
+
+function updateMacroTargetFields({ applyPreset = false } = {}) {
+    const strategy = document.getElementById('macroStrategy')?.value || 'protein_focused';
+    const ratioInputs = [
+        document.getElementById('macroProteinPct'),
+        document.getElementById('macroCarbPct'),
+        document.getElementById('macroFatPct')
+    ];
+
+    if (applyPreset && MACRO_PRESETS[strategy]) {
+        const preset = MACRO_PRESETS[strategy];
+        ratioInputs[0].value = preset.proteinPct;
+        ratioInputs[1].value = preset.carbPct;
+        ratioInputs[2].value = preset.fatPct;
+    }
+
+    const isManual = strategy === 'manual';
+    ratioInputs.forEach(input => {
+        input.readOnly = !isManual;
+        input.classList.toggle('is-readonly', !isManual);
+    });
+
+    const rawPreferences = getMacroPreferencesFormState();
+    const total = [rawPreferences.proteinPct, rawPreferences.carbPct, rawPreferences.fatPct]
+        .reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0);
+    const status = document.getElementById('macroRatioStatus');
+    const isValid = areMacroPreferencesValid(rawPreferences);
+    if (status) {
+        status.textContent = `Toplam %${Math.round(total)}`;
+        status.classList.toggle('is-invalid', !isValid);
+    }
+
+    if (!isValid) return false;
+    const kcal = Number(document.getElementById('targetKcal')?.value) || TARGETS.kcal;
+    const macroTargets = calculateMacroTargets(kcal, rawPreferences);
+    document.getElementById('targetProtein').value = macroTargets.protein;
+    document.getElementById('targetCarb').value = macroTargets.carb;
+    document.getElementById('targetFat').value = macroTargets.fat;
+    return true;
+}
+
+function updateDayTypeTargetFields() {
+    const energy = Number(document.getElementById('targetKcal')?.value) || TARGETS.kcal;
+    const trainingDays = Number(document.getElementById('profileTrainingDays')?.value) || 0;
+    const dayTargets = calculateDayTypeEnergyTargets(energy, trainingDays);
+    const trainingInput = document.getElementById('trainingDayKcal');
+    const restInput = document.getElementById('restDayKcal');
+    if (trainingInput) trainingInput.value = dayTargets.trainingDayKcal;
+    if (restInput) restInput.value = dayTargets.restDayKcal;
+    return dayTargets;
+}
+
 // Hesapla ve göster
 function calculateAndShowGoals() {
     const profileInput = {
@@ -334,38 +464,35 @@ function calculateAndShowGoals() {
         trainingDays: document.getElementById('profileTrainingDays').value,
         steps: document.getElementById('profileSteps').value,
         goalMode: document.getElementById('profileGoalMode').value,
-        targetWeight: document.getElementById('profileTargetWeight').value,
-        trainingWeekdays: document.getElementById('profileTrainingWeekdays').value,
-        trainingDayKcal: document.getElementById('trainingDayKcal').value,
-        restDayKcal: document.getElementById('restDayKcal').value
+        targetWeight: document.getElementById('profileTargetWeight').value
     };
     const profileError = validateCompleteProfile(profileInput);
     if (profileError) {
         showError(profileError);
         return;
     }
+    const macroPreferencesInput = getMacroPreferencesFormState();
+    if (!areMacroPreferencesValid(macroPreferencesInput)) {
+        showError('Protein, karbonhidrat ve yağ oranlarının toplamı %100 olmalı.');
+        return;
+    }
     const profile = normalizeProfile(profileInput);
 
     saveProfile(profile);
+    const macroPreferences = saveMacroPreferences(macroPreferencesInput);
 
     const bmr = calcBMR(profile.gender, profile.weight, profile.height, profile.age);
     const tdee = calcTDEE(bmr, profile.activity, profile.trainingDays, profile.steps);
-    const targetKcal = applyGoalMode(tdee, profile.goalMode);
-    const protein = suggestProtein(profile.weight, profile.goalMode);
-    const fat = suggestFat(profile.weight);
-    const carb = suggestCarb(targetKcal, protein, fat);
+    const calculatedTarget = applyGoalMode(tdee, profile.goalMode);
+    const targetKcal = calculateGoalTarget(calculatedTarget, profile.goalMode);
+    const { protein, carb, fat } = calculateMacroTargets(targetKcal, macroPreferences);
 
     // Hedef alanlarına doldur
     document.getElementById('targetKcal').value = targetKcal;
     document.getElementById('targetProtein').value = protein;
     document.getElementById('targetFat').value = fat;
     document.getElementById('targetCarb').value = carb;
-    if (!document.getElementById('trainingDayKcal').value) {
-        document.getElementById('trainingDayKcal').value = Math.round((targetKcal + 150) / 50) * 50;
-    }
-    if (!document.getElementById('restDayKcal').value) {
-        document.getElementById('restDayKcal').value = Math.round((targetKcal - 100) / 50) * 50;
-    }
+    updateDayTypeTargetFields();
 
     // Öneri kutusunu göster
     const modeLabels = {
@@ -671,14 +798,13 @@ async function loadExtendedLogsForAdaptive(weightEntries) {
         adaptiveBtn.onclick = async () => {
             const profile = loadProfile();
             const mode = profile.goalMode || 'maintain';
-            const newKcal = applyGoalMode(result.adaptiveTDEE, mode);
-            const protein = suggestProtein(profile.weight || 75, mode);
-            const fat = suggestFat(profile.weight || 75);
-            const carb = suggestCarb(newKcal, protein, fat);
+            const calculatedTarget = applyGoalMode(result.adaptiveTDEE, mode);
+            const newKcal = calculateGoalTarget(calculatedTarget, mode);
+            const { protein, carb, fat } = calculateMacroTargets(newKcal, MACRO_PREFERENCES);
 
             saveTargets({ kcal: newKcal, protein, carb, fat });
             document.getElementById('targetKcalDisplay').textContent = newKcal;
-            await saveSettingsToCloud({ kcal: newKcal, protein, carb, fat }, profile);
+            await saveSettingsToCloud({ kcal: newKcal, protein, carb, fat }, profile, MACRO_PREFERENCES);
             showError(`Hedef güncellendi: tahmini harcama ${result.adaptiveTDEE} kcal, yeni hedef ${newKcal} kcal.`, 'success');
             renderWeightSection();
         };
@@ -929,11 +1055,7 @@ function applyFuturePreviewData() {
     updateSummary();
     renderLogs();
     renderChart();
-    updateMotivation();
     updateGoalStreak();
-
-    const motivationEl = document.getElementById('motivationText');
-    motivationEl.textContent = `Önizleme modu aktif. Sahte veri ile geleceğe dönük görünüm gösteriliyor. ${motivationEl.textContent}`;
 
     removeFuturePreviewQueryParam();
 }
@@ -1032,6 +1154,17 @@ function updateConnectionIndicator(state = navigator.onLine ? 'online' : 'offlin
     indicator.querySelector('strong').textContent = labels[state] || labels.online;
 }
 
+function updateThemeControl(isDark) {
+    const button = document.getElementById('darkModeBtn');
+    if (!button) return;
+    const label = isDark ? 'Açık temaya geç' : 'Koyu temaya geç';
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    button.innerHTML = isDark
+        ? '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>'
+        : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.2A8.2 8.2 0 0 1 8.8 4 8.3 8.3 0 1 0 20 15.2Z"/></svg>';
+}
+
 // Data Functions
 async function loadInitialDailyLogs() {
     try {
@@ -1073,7 +1206,6 @@ async function loadInitialDailyLogs() {
         renderLogs();
         renderChart();
         renderProgressInsights();
-        updateMotivation();
         updateGoalStreak();
     } catch (error) {
         console.error('Error loading initial daily logs:', error);
@@ -1129,83 +1261,80 @@ async function refreshDailyLogViews() {
     }
 }
 
-function getDailyReviewDate() {
-    if (logsDateFilter && (!logsDateToFilter || logsDateToFilter === logsDateFilter)) {
-        return logsDateFilter;
-    }
-    return getToday();
+function renderTodayTrainingToggle() {
+    const button = document.getElementById('dashboardTrainingToggle');
+    const label = document.getElementById('dashboardTrainingLabel');
+    const meta = document.getElementById('dashboardTrainingMeta');
+    const state = document.getElementById('dashboardTrainingState');
+    if (!button || !label || !meta || !state) return;
+
+    const today = getToday();
+    const trained = dailyMetaCache.get(today)?.trained === true;
+    const activeTarget = getCalorieTargetForDate(today);
+    button.classList.toggle('is-training', trained);
+    button.setAttribute('aria-pressed', String(trained));
+    label.textContent = trained ? 'Bugün antrenman yapmadım' : 'Bugün antrenman yaptım';
+    meta.textContent = `${trained ? 'Antrenman' : 'Dinlenme'} hedefi aktif · ${activeTarget} kcal`;
+    state.textContent = trained ? 'Antrenman' : 'Dinlenme';
 }
 
-function renderDailyMeta(date, meta = {}) {
-    const dateEl = document.getElementById('dailyCheckinDate');
-    const noteEl = document.getElementById('dailyNote');
-    const hungerEl = document.getElementById('dailyHunger');
-    const energyEl = document.getElementById('dailyEnergy');
-    const statusEl = document.getElementById('dailyCheckinStatus');
-    const summaryStatusEl = document.getElementById('dailyCheckinSummaryStatus');
-    const completeBtn = document.getElementById('completeDayBtn');
-    if (!dateEl || !noteEl || !hungerEl || !energyEl || !statusEl || !completeBtn) return;
-
-    dateEl.textContent = date === getToday() ? 'Bugün' : formatDate(date);
-    noteEl.value = String(meta.note || '');
-    hungerEl.value = Number(meta.hunger) || 3;
-    energyEl.value = Number(meta.energy) || 3;
-    document.getElementById('dailyHungerValue').textContent = `${hungerEl.value}/5`;
-    document.getElementById('dailyEnergyValue').textContent = `${energyEl.value}/5`;
-    const complete = Boolean(meta.completed);
-    completeBtn.classList.toggle('is-complete', complete);
-    completeBtn.textContent = complete ? 'Gün tamamlandı' : 'Günü tamamla';
-    statusEl.textContent = meta.updated_at ? 'Değerlendirme kaydedildi' : 'Henüz kaydedilmedi';
-    if (summaryStatusEl) {
-        summaryStatusEl.textContent = meta.updated_at ? (complete ? 'Tamamlandı' : 'Kaydedildi') : 'Ekle';
-    }
+function refreshTodayTrainingViews() {
+    updateSummary();
+    renderChart();
+    renderProgressInsights();
 }
 
-async function loadDailyMeta(date = getDailyReviewDate()) {
-    if (!db || !date) return;
-    if (dailyMetaCache.has(date)) {
-        renderDailyMeta(date, dailyMetaCache.get(date));
-        return;
-    }
-    try {
-        const settings = await readSharedSettingsData();
-        const meta = settings.daily_meta?.[date] || {};
-        dailyMetaCache.set(date, meta);
-        if (date === getDailyReviewDate()) renderDailyMeta(date, meta);
-    } catch (error) {
-        console.warn('Daily review could not be loaded:', error);
-        renderDailyMeta(date, {});
-    }
-}
-
-async function saveDailyMeta({ toggleComplete = false } = {}) {
-    const date = getDailyReviewDate();
-    const previous = dailyMetaCache.get(date) || {};
-    const payload = {
+async function toggleTodayTraining() {
+    const button = document.getElementById('dashboardTrainingToggle');
+    const date = getToday();
+    const hadPrevious = dailyMetaCache.has(date);
+    const previous = { ...(dailyMetaCache.get(date) || {}) };
+    const trained = previous.trained !== true;
+    dailyMetaCache.set(date, {
+        ...previous,
         date,
-        note: document.getElementById('dailyNote')?.value.trim().slice(0, 500) || '',
-        hunger: Number(document.getElementById('dailyHunger')?.value) || 3,
-        energy: Number(document.getElementById('dailyEnergy')?.value) || 3,
-        completed: toggleComplete ? !previous.completed : Boolean(previous.completed),
+        trained,
         schema_version: APP_SCHEMA_VERSION,
-        updated_at: serverTimestamp()
-    };
+        updated_at: new Date()
+    });
+    refreshTodayTrainingViews();
+    if (button) button.disabled = true;
+
     try {
         const settings = await readSharedSettingsData();
-        const dailyMeta = {
-            ...(settings.daily_meta && typeof settings.daily_meta === 'object'
-                ? settings.daily_meta
-                : {}),
-            [date]: payload
+        const existingMeta = settings.daily_meta && typeof settings.daily_meta === 'object'
+            ? settings.daily_meta
+            : {};
+        const payload = {
+            ...(existingMeta[date] && typeof existingMeta[date] === 'object'
+                ? existingMeta[date]
+                : previous),
+            date,
+            trained,
+            schema_version: APP_SCHEMA_VERSION,
+            updated_at: serverTimestamp()
         };
-        await writeSharedSettingsField('daily_meta', dailyMeta);
-        const localPayload = { ...payload, updated_at: new Date() };
-        dailyMetaCache.set(date, localPayload);
-        renderDailyMeta(date, localPayload);
-        showError(payload.completed ? 'Gün tamamlandı.' : 'Gün değerlendirmesi kaydedildi.', 'success');
+        await writeSharedSettingsField('daily_meta', {
+            ...existingMeta,
+            [date]: payload
+        });
+        dailyMetaCache.set(date, { ...payload, updated_at: new Date() });
+        refreshTodayTrainingViews();
+        showError(
+            trained ? 'Bugün antrenman günü olarak kaydedildi.' : 'Bugün dinlenme günü olarak kaydedildi.',
+            'success'
+        );
     } catch (error) {
-        console.error('Daily review could not be saved:', error);
-        showError('Gün değerlendirmesi kaydedilemedi.');
+        console.error('Training status could not be saved:', error);
+        if (hadPrevious) {
+            dailyMetaCache.set(date, previous);
+        } else {
+            dailyMetaCache.delete(date);
+        }
+        refreshTodayTrainingViews();
+        showError('Antrenman durumu kaydedilemedi.');
+    } finally {
+        if (button) button.disabled = false;
     }
 }
 
@@ -1305,18 +1434,23 @@ function updateGoalStreak() {
 
 function getCalorieTargetForDate(date) {
     const profile = loadProfile();
-    const weekday = new Date(`${date}T12:00:00`).getDay() || 7;
-    const isTrainingDay = (profile.trainingWeekdays || []).includes(weekday);
-    if (isTrainingDay && profile.trainingDayKcal) return profile.trainingDayKcal;
-    if (!isTrainingDay && profile.restDayKcal) return profile.restDayKcal;
-    return TARGETS.kcal;
+    const dayTargets = calculateDayTypeEnergyTargets(TARGETS.kcal, profile.trainingDays);
+    return resolveDayEnergyTarget({
+        baseKcal: TARGETS.kcal,
+        ...dayTargets,
+        trained: dailyMetaCache.get(date)?.trained === true
+    });
+}
+
+function getMacroTargetsForDate(date) {
+    return calculateMacroTargets(getCalorieTargetForDate(date), MACRO_PREFERENCES);
 }
 
 function renderProgressInsights() {
     const weeklyDates = getLast7Days();
     const weeklyLogs = recentLogs.filter(log => weeklyDates.includes(log.date));
     const budget = calculateWeeklyBudget(weeklyLogs, getCalorieTargetForDate, weeklyDates);
-    const macro = calculateMacroAdherence(weeklyLogs, TARGETS, weeklyDates);
+    const macro = calculateMacroAdherence(weeklyLogs, getMacroTargetsForDate, weeklyDates);
     const macroScores = Object.values(macro).map(value =>
         Math.max(0, 100 - Math.abs(100 - value.percentage))
     );
@@ -1430,6 +1564,7 @@ async function addLog(item, grams, logDate = getToday(), mealType = 'snack', dis
             display_amount: Number(displayPortion?.amount) || grams,
             display_unit: displayPortion?.unit || (itemType === 'drink' ? 'ml' : 'g'),
             meal_type: MEAL_LABELS[mealType] ? mealType : 'snack',
+            nutrition_confidence: inferNutritionConfidence(item),
             schema_version: APP_SCHEMA_VERSION,
             ...nutrition,
             created_at: serverTimestamp()
@@ -1607,8 +1742,6 @@ function renderLogs() {
         : (logsDateFilter && logsDateToFilter && logsDateFilter !== logsDateToFilter
             ? `${formatDate(logsDateFilter)} – ${formatDate(logsDateToFilter)}`
             : formatDate(logsDateFilter || logsDateToFilter));
-    void loadDailyMeta(getDailyReviewDate());
-
     if (countEl) {
         countEl.textContent = hasDateFilter
             ? `${allLogsForList.length} kayıt · ${rangeLabel}`
@@ -1681,6 +1814,13 @@ function renderLogs() {
                                 const sugar = Number.isFinite(Number(log.sugar)) ? Number(log.sugar) : 0;
                                 const sodium = Number.isFinite(Number(log.sodium)) ? Number(log.sodium) : 0;
                                 const kcal = Number.isFinite(Number(log.kcal)) ? Number(log.kcal) : 0;
+                                const confidence = inferNutritionConfidence({
+                                    name: log.item_name,
+                                    nutrition_confidence: log.nutrition_confidence
+                                });
+                                const confidenceLabel = confidence === 'verified'
+                                    ? ''
+                                    : `<span class="log-confidence" data-confidence="${confidence}">${getNutritionConfidenceLabel(confidence)}</span>`;
                                 return `
                                 <div class="log-item" data-id="${safeLogId}" draggable="true">
                                     <div class="log-info">
@@ -1693,6 +1833,7 @@ function renderLogs() {
                                             ${fiber > 0 ? `<span>L ${fiber}g</span>` : ''}
                                             ${sugar > 0 ? `<span>Ş ${sugar}g</span>` : ''}
                                             ${sodium > 0 ? `<span>Na ${sodium}mg</span>` : ''}
+                                            ${confidenceLabel}
                                         </div>
                                     </div>
                                     <div class="log-kcal">${kcal}<span>kcal</span></div>
@@ -1782,6 +1923,7 @@ function renderLogs() {
 function updateSummary() {
     const totals = sumLogs(todayLogs);
     const calorieTarget = getCalorieTargetForDate(getToday());
+    const macroTargets = getMacroTargetsForDate(getToday());
 
     // Update calorie display
     document.getElementById('currentKcal').textContent = totals.kcal;
@@ -1800,9 +1942,14 @@ function updateSummary() {
         remaining > 0 ? `${remaining} kcal kaldı` : `${Math.abs(remaining)} kcal aşıldı`;
 
     // Update macro bars
-    updateMacroBar('protein', totals.protein, TARGETS.protein);
-    updateMacroBar('carb', totals.carb, TARGETS.carb);
-    updateMacroBar('fat', totals.fat, TARGETS.fat);
+    updateMacroBar('protein', totals.protein, macroTargets.protein);
+    updateMacroBar('carb', totals.carb, macroTargets.carb);
+    updateMacroBar('fat', totals.fat, macroTargets.fat);
+    const macroGuidance = document.getElementById('macroGuidance');
+    if (macroGuidance) {
+        macroGuidance.textContent = getMacroGuidance(totals, macroTargets);
+    }
+    renderTodayTrainingToggle();
 }
 
 function updateMacroBar(type, current, target) {
@@ -1999,6 +2146,8 @@ function getLaunchMotivationMessage() {
 }
 
 function updateMotivation() {
+    const motivationEl = document.querySelector('#motivationText');
+    if (!motivationEl) return;
     const totals = sumLogs(todayLogs);
 
     const remaining = TARGETS.kcal - totals.kcal;
@@ -2170,7 +2319,7 @@ function updateMotivation() {
         if (pool.length > 0) compact.push(pool[Math.floor(Math.random() * pool.length)]);
     }
 
-    document.getElementById('motivationText').textContent = compact
+    motivationEl.textContent = compact
         .join(' ')
         .replace(/\p{Extended_Pictographic}|\uFE0F/gu, '')
         .replace(/\s+/g, ' ')
@@ -2277,6 +2426,10 @@ function getProductCardContent(item, itemType, options = {}) {
     const unit = itemType === 'drink' ? '100 ml' : '100 g';
     const initial = String(item.name || '?').trim().charAt(0).toLocaleUpperCase('tr-TR');
     const isFavorite = includeFavorite && isFavoriteItem(item.id, itemType);
+    const confidence = inferNutritionConfidence(item);
+    const confidenceBadge = confidence === 'verified'
+        ? ''
+        : `<span class="nutrition-confidence-badge" data-confidence="${confidence}">${getNutritionConfidenceLabel(confidence)}</span>`;
     const actions = [];
 
     if (includeFavorite) {
@@ -2298,7 +2451,7 @@ function getProductCardContent(item, itemType, options = {}) {
             <div class="catalog-item-topline">
                 <div>
                     <div class="catalog-item-name">${nameHtml}</div>
-                    <div class="catalog-item-type">${itemType === 'food' ? 'Yiyecek' : 'İçecek'} · ${unit}</div>
+                    <div class="catalog-item-type">${itemType === 'food' ? 'Yiyecek' : 'İçecek'} · ${unit} ${confidenceBadge}</div>
                 </div>
                 ${actions.length ? `<div class="catalog-card-actions">${actions.join('')}</div>` : ''}
             </div>
@@ -2584,7 +2737,9 @@ function renderPendingLogItems() {
                 <strong>${escapeHtml(entry.item.name)}</strong>
                 <span>${entry.displayAmount} ${escapeHtml(entry.unitLabel)} · ${MEAL_LABELS[entry.meal_type]}</span>
             </div>
-            <button type="button" data-index="${index}" aria-label="${escapeHtml(entry.item.name)} besinini listeden çıkar">Kaldır</button>
+            <button class="queue-delete-btn" type="button" data-index="${index}" aria-label="${escapeHtml(entry.item.name)} besinini listeden sil" title="Listeden sil">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>
+            </button>
         </div>
     `).join('');
     list.querySelectorAll('button[data-index]').forEach(button => {
@@ -2721,6 +2876,16 @@ function updatePreview() {
     document.getElementById('previewProtein').textContent = `${protein}g`;
     document.getElementById('previewCarb').textContent = `${carb}g`;
     document.getElementById('previewFat').textContent = `${fat}g`;
+    const confidence = inferNutritionConfidence(selectedItem);
+    const confidenceNote = document.getElementById('nutritionConfidenceNote');
+    if (confidenceNote) {
+        confidenceNote.dataset.confidence = confidence;
+        confidenceNote.textContent = confidence === 'estimated'
+            ? 'Standart içeriğe göre tahmini hesap. Daha net sonuç için malzemelerinle bir tarif oluştur.'
+            : confidence === 'personal'
+                ? 'Kendi kaydettiğin değerlere göre hesaplandı.'
+                : 'Ürün veya temel besin değerine göre hesaplandı.';
+    }
 
     preview.style.display = 'block';
 }
@@ -2851,7 +3016,13 @@ function normalizeTemplate(raw) {
     const servings = kind === 'recipe'
         ? Math.min(100, Math.max(1, Math.round(Number(raw.servings) || 1)))
         : 1;
-    return { id, name, kind, servings, items };
+    const fallbackYield = items.reduce((sum, item) => sum + Number(item.grams || 0), 0);
+    const yieldAmount = kind === 'recipe'
+        ? Math.min(100000, Math.max(1, Number(raw.yieldAmount) || fallbackYield || servings))
+        : 0;
+    const yieldUnit = raw.yieldUnit === 'ml' ? 'ml' : 'g';
+    const nutritionConfidence = raw.nutritionConfidence === 'estimated' ? 'estimated' : 'personal';
+    return { id, name, kind, servings, yieldAmount, yieldUnit, nutritionConfidence, items };
 }
 
 function normalizeTemplates(rawTemplates) {
@@ -3000,6 +3171,57 @@ function saveTemplates(templates) {
     return setLocalTemplatesUpdatedAtMs(Date.now());
 }
 
+function getTemplateIngredientNutrition(template) {
+    return (template?.items || []).map(entry => {
+        const source = entry.type === 'food' ? foods : drinks;
+        const item = source.find(candidate => candidate.id === entry.item_id);
+        return item ? calculateLogNutrition(item, entry.grams) : null;
+    }).filter(Boolean);
+}
+
+function getTemplateNutritionTotals(template) {
+    return sumNutrition(getTemplateIngredientNutrition(template));
+}
+
+function getRecipeDefaultAmount(template) {
+    const yieldAmount = Number(template?.yieldAmount) || 0;
+    const servings = Math.max(1, Number(template?.servings) || 1);
+    return Math.round((yieldAmount / servings) * 10) / 10;
+}
+
+async function addRecipeLog(template, consumedAmount, logDate = getToday()) {
+    const amount = Number(consumedAmount);
+    const yieldAmount = Number(template?.yieldAmount);
+    if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(yieldAmount) || yieldAmount <= 0) {
+        throw new Error('Tarif miktarı geçersiz.');
+    }
+
+    const nutrition = calculateRecipeNutrition(
+        getTemplateIngredientNutrition(template),
+        yieldAmount,
+        amount
+    );
+    const unit = template.yieldUnit === 'ml' ? 'ml' : 'g';
+    const mealType = document.getElementById('mealType')?.value || 'snack';
+    await addDoc(collection(db, 'daily_logs'), {
+        date: logDate,
+        item_id: template.id,
+        item_name: template.name,
+        grams: amount,
+        item_type: unit === 'ml' ? 'drink' : 'food',
+        unit,
+        display_amount: amount,
+        display_unit: unit,
+        meal_type: MEAL_LABELS[mealType] ? mealType : 'snack',
+        recipe_yield: yieldAmount,
+        recipe_servings: template.servings,
+        nutrition_confidence: template.nutritionConfidence,
+        schema_version: APP_SCHEMA_VERSION,
+        ...nutrition,
+        created_at: serverTimestamp()
+    });
+}
+
 async function addLogBatch(items, logDate = getToday()) {
     if (!Array.isArray(items) || items.length === 0) return;
     if (items.length > 400) {
@@ -3025,6 +3247,7 @@ async function addLogBatch(items, logDate = getToday()) {
             display_amount: Number(entry.displayAmount) || entry.grams,
             display_unit: entry.display_unit || (itemType === 'drink' ? 'ml' : 'g'),
             meal_type: MEAL_LABELS[entry.meal_type] ? entry.meal_type : (document.getElementById('mealType')?.value || 'snack'),
+            nutrition_confidence: inferNutritionConfidence(item),
             schema_version: APP_SCHEMA_VERSION,
             ...nutrition,
             created_at: serverTimestamp()
@@ -3047,23 +3270,42 @@ function renderTemplateList() {
     }
 
     listEl.innerHTML = templates.map(tpl => {
-        const totalKcal = tpl.items.reduce((sum, ti) => {
-            const source = ti.type === 'food' ? foods : drinks;
-            const found = source.find(s => s.id === ti.item_id);
-            return found ? sum + Math.round(found.kcal_100 * ti.grams / 100) : sum;
-        }, 0);
-        const servingKcal = tpl.kind === 'recipe' ? Math.round(totalKcal / tpl.servings) : totalKcal;
-        const kindLabel = tpl.kind === 'recipe' ? `Tarif · ${tpl.servings} porsiyon` : 'Kayıtlı öğün';
+        const totals = getTemplateNutritionTotals(tpl);
+        const defaultAmount = tpl.kind === 'recipe' ? getRecipeDefaultAmount(tpl) : 0;
+        const displayNutrition = tpl.kind === 'recipe'
+            ? calculateRecipeNutrition([totals], tpl.yieldAmount, defaultAmount)
+            : totals;
+        const kindLabel = tpl.kind === 'recipe'
+            ? `Tarif · ${tpl.yieldAmount} ${tpl.yieldUnit} · ${tpl.servings} porsiyon`
+            : 'Kayıtlı öğün';
+        const confidenceLabel = tpl.kind === 'recipe'
+            ? getNutritionConfidenceLabel(tpl.nutritionConfidence)
+            : '';
+        const applyControl = tpl.kind === 'recipe'
+            ? `
+                <label class="template-portion-control">
+                    <span>Yediğin miktar</span>
+                    <span><input type="number" min="1" max="${tpl.yieldAmount}" step="1" value="${defaultAmount}" data-recipe-amount> ${tpl.yieldUnit}</span>
+                </label>
+                <button class="btn btn-primary btn-sm template-apply" data-id="${tpl.id}">Günlüğe ekle</button>
+            `
+            : `<button class="btn btn-primary btn-sm template-apply" data-id="${tpl.id}">Uygula</button>`;
 
         return `
             <div class="template-card" data-id="${tpl.id}">
                 <div class="template-card-header">
                     <div>
                         <div class="template-card-name">${escapeHtml(tpl.name)}</div>
-                        <div class="template-card-info">${kindLabel} · ${tpl.items.length} malzeme · porsiyon başına yaklaşık ${servingKcal} kcal</div>
+                        <div class="template-card-info">${kindLabel} · ${tpl.items.length} malzeme${confidenceLabel ? ` · ${confidenceLabel}` : ''}</div>
+                        <div class="template-card-nutrition">
+                            <strong>${Math.round(displayNutrition.kcal)} kcal</strong>
+                            <span>P ${Math.round(displayNutrition.protein)}g</span>
+                            <span>K ${Math.round(displayNutrition.carb)}g</span>
+                            <span>Y ${Math.round(displayNutrition.fat)}g</span>
+                        </div>
                     </div>
                     <div class="template-card-actions">
-                        <button class="btn btn-primary btn-sm template-apply" data-id="${tpl.id}">Uygula</button>
+                        ${applyControl}
                         <button class="btn btn-secondary btn-sm template-delete" data-id="${tpl.id}">Sil</button>
                     </div>
                 </div>
@@ -3075,7 +3317,11 @@ function renderTemplateList() {
     }).join('');
 
     listEl.querySelectorAll('.template-apply').forEach(btn => {
-        btn.addEventListener('click', () => applyTemplate(btn.dataset.id));
+        btn.addEventListener('click', () => {
+            const card = btn.closest('.template-card');
+            const amount = Number(card?.querySelector('[data-recipe-amount]')?.value);
+            applyTemplate(btn.dataset.id, amount);
+        });
     });
     listEl.querySelectorAll('.template-delete').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -3092,17 +3338,23 @@ function renderTemplateList() {
     });
 }
 
-async function applyTemplate(templateId) {
+async function applyTemplate(templateId, recipeAmount = 0) {
     const templates = loadTemplates();
     const tpl = templates.find(t => t.id === templateId);
     if (!tpl) return;
     const logDate = getSelectedLogDate();
     // Batch: tum loglari ekle, sonra tek seferde yenile
     try {
-        const itemsToAdd = tpl.kind === 'recipe'
-            ? tpl.items.map(item => ({ ...item, grams: Math.round((item.grams / tpl.servings) * 10) / 10 }))
-            : tpl.items;
-        await addLogBatch(itemsToAdd, logDate);
+        if (tpl.kind === 'recipe') {
+            const amount = Number(recipeAmount) > 0 ? Number(recipeAmount) : getRecipeDefaultAmount(tpl);
+            if (amount > tpl.yieldAmount) {
+                showError(`Tarifin toplamı ${tpl.yieldAmount} ${tpl.yieldUnit}. Daha düşük bir miktar gir.`);
+                return;
+            }
+            await addRecipeLog(tpl, amount, logDate);
+        } else {
+            await addLogBatch(tpl.items, logDate);
+        }
     } catch (error) {
         console.error('Template could not be applied:', error);
         showError('Kayıtlı öğün günlüğe eklenemedi; hiçbir değişiklik yapılmadı.');
@@ -3132,6 +3384,10 @@ function showTemplateForm() {
     document.getElementById('templateName').value = '';
     document.getElementById('templateKind').value = 'meal';
     document.getElementById('templateServings').value = '1';
+    document.getElementById('templateYield').value = '';
+    document.getElementById('templateYieldUnit').value = 'g';
+    document.getElementById('templateConfidence').value = 'personal';
+    document.getElementById('recipeSettings').hidden = true;
     currentTemplateItems = [];
     tplSelectedItem = null;
     renderTemplateFormItems();
@@ -3146,8 +3402,10 @@ function hideTemplateForm() {
 
 function renderTemplateFormItems() {
     const listEl = document.getElementById('templateItemsList');
+    const previewEl = document.getElementById('templateNutritionPreview');
     if (currentTemplateItems.length === 0) {
         listEl.innerHTML = '<div class="template-empty-items">Bu öğüne henüz besin eklenmedi.</div>';
+        if (previewEl) previewEl.textContent = '';
         return;
     }
     listEl.innerHTML = currentTemplateItems.map((item, i) => `
@@ -3163,20 +3421,48 @@ function renderTemplateFormItems() {
             renderTemplateFormItems();
         });
     });
+
+    if (previewEl) {
+        const totals = sumNutrition(currentTemplateItems.map(entry => {
+            const source = entry.type === 'food' ? foods : drinks;
+            const item = source.find(candidate => candidate.id === entry.item_id);
+            return item ? calculateLogNutrition(item, entry.grams) : null;
+        }).filter(Boolean));
+        previewEl.innerHTML = `
+            <span>Tarifin tamamı</span>
+            <strong>${Math.round(totals.kcal)} kcal</strong>
+            <span>P ${Math.round(totals.protein)}g · K ${Math.round(totals.carb)}g · Y ${Math.round(totals.fat)}g</span>
+        `;
+    }
 }
 
 async function saveCurrentTemplate() {
     const name = document.getElementById('templateName').value.trim();
     const kind = document.getElementById('templateKind').value === 'recipe' ? 'recipe' : 'meal';
     const servings = Math.min(100, Math.max(1, Math.round(Number(document.getElementById('templateServings').value) || 1)));
+    const fallbackYield = currentTemplateItems.reduce((sum, item) => sum + Number(item.grams || 0), 0);
+    const yieldAmount = kind === 'recipe'
+        ? Number(document.getElementById('templateYield').value)
+        : 0;
+    const yieldUnit = document.getElementById('templateYieldUnit').value === 'ml' ? 'ml' : 'g';
+    const nutritionConfidence = document.getElementById('templateConfidence').value === 'estimated'
+        ? 'estimated'
+        : 'personal';
     if (!name) { showError('Öğününe bir ad ver.'); return; }
     if (currentTemplateItems.length === 0) { showError('Öğüne en az bir besin ekle.'); return; }
+    if (kind === 'recipe' && (!Number.isFinite(yieldAmount) || yieldAmount <= 0 || yieldAmount > 100000)) {
+        showError('Tarifin hazırlandıktan sonraki toplam gram veya mililitre miktarını gir.');
+        return;
+    }
 
     const template = {
         id: 'tpl_' + Date.now(),
         name,
         kind,
         servings,
+        yieldAmount: kind === 'recipe' ? yieldAmount : fallbackYield,
+        yieldUnit,
+        nutritionConfidence,
         items: currentTemplateItems.map(ti => ({
             item_id: ti.item_id, item_name: ti.item_name, grams: ti.grams, type: ti.type
         }))
@@ -3282,13 +3568,14 @@ async function exportJsonBackup() {
             templates: templatesSnap.exists() ? templatesSnap.data() : null,
             local: {
                 targets: TARGETS,
+                macro_preferences: MACRO_PREFERENCES,
                 profile: loadProfile(),
                 favorites: loadFavoriteItems(),
                 recent_items: loadRecentItems()
             }
         };
         downloadTextFile(
-            `kalori-takip-yedek-${getToday()}.json`,
+            `denge-yedek-${getToday()}.json`,
             JSON.stringify(backup, null, 2),
             'application/json;charset=utf-8'
         );
@@ -3406,7 +3693,7 @@ function validateBackupCollection(name, entries, validateData) {
 }
 
 function validateBackup(backup) {
-    if (!isRecord(backup) || ![1, 2].includes(backup.schema_version)) {
+    if (!isRecord(backup) || ![1, 2, 3].includes(backup.schema_version)) {
         return 'Yedek biçimi desteklenmiyor.';
     }
 
@@ -3445,6 +3732,7 @@ function validateBackup(backup) {
             isValidDateString(data.date)
             && isFiniteNumberInRange(data.hunger ?? 3, 1, 5)
             && isFiniteNumberInRange(data.energy ?? 3, 1, 5)
+            && (data.trained === undefined || typeof data.trained === 'boolean')
         );
         if (dailyMetaError) return dailyMetaError;
 
@@ -3528,6 +3816,9 @@ async function restoreJsonBackup(file) {
 
         // Eski yerel önbellek, geri yüklenen bulut verisini yeniden ezmesin.
         resetLocalData();
+        if (backup.local?.macro_preferences) {
+            saveMacroPreferences(backup.local.macro_preferences);
+        }
         if (backup.local?.targets) saveTargets(backup.local.targets);
         if (backup.local?.profile) saveProfile(backup.local.profile);
         if (Array.isArray(backup.local?.favorites)) {
@@ -3637,6 +3928,7 @@ function removeCustomItemsFromLocalArrays() {
 function resetLocalData() {
     const keysToRemove = [
         TARGETS_KEY,
+        MACRO_PREFERENCES_KEY,
         PROFILE_KEY,
         WEIGHT_LOG_KEY,
         RECENT_ITEMS_KEY,
@@ -3676,6 +3968,7 @@ function resetLocalData() {
 
     saveProfile({});
     saveWeightLog([]);
+    saveMacroPreferences(DEFAULT_MACRO_PREFERENCES);
     saveTargets(getDefaultTargets());
 }
 
@@ -3697,7 +3990,6 @@ function refreshUiAfterReset() {
     setInputValue('profileSteps', '');
     setInputValue('profileGoalMode', 'cut_moderate');
     setInputValue('profileTargetWeight', '');
-    setInputValue('profileTrainingWeekdays', '');
     setInputValue('trainingDayKcal', '');
     setInputValue('restDayKcal', '');
 
@@ -3705,6 +3997,7 @@ function refreshUiAfterReset() {
     setInputValue('targetProtein', TARGETS.protein);
     setInputValue('targetCarb', TARGETS.carb);
     setInputValue('targetFat', TARGETS.fat);
+    renderMacroPreferencesForm(MACRO_PREFERENCES);
 
     setInputValue('weightInput', '');
     setInputValue('weightDate', getToday());
@@ -3722,6 +4015,7 @@ function refreshUiAfterReset() {
     setInputValue('customFiber', '');
     setInputValue('customSugar', '');
     setInputValue('customSodium', '');
+    setInputValue('customConfidence', 'verified');
     setInputValue('catalogSearch', '');
     setInputValue('templateName', '');
     setInputValue('tplSearchInput', '');
@@ -3769,7 +4063,6 @@ function refreshUiAfterReset() {
     renderLogs();
     renderChart();
     renderProgressInsights();
-    updateMotivation();
     updateGoalStreak();
     renderWeightSection();
     renderCatalog();
@@ -3819,6 +4112,9 @@ function normalizeCustomItem(id, raw) {
         name,
         type,
         ref_amount: referenceAmount,
+        nutrition_confidence: ['verified', 'personal', 'estimated'].includes(raw.nutrition_confidence)
+            ? raw.nutrition_confidence
+            : 'verified',
         schema_version: Number(raw.schema_version) || 1,
         ...nutrition
     };
@@ -3851,11 +4147,21 @@ function renderMeasurements() {
         container.innerHTML = '<div class="weight-no-data">Henüz vücut ölçümü yok.</div>';
         return;
     }
+    const formatMeasurement = value => {
+        const number = Number(value);
+        return Number.isFinite(number) && number > 0 ? `${number} cm` : '—';
+    };
     container.innerHTML = measurementCache.slice(0, 8).map(entry => `
         <div class="measurement-item">
-            <strong>${formatDate(entry.date)}</strong>
-            <span>Bel ${entry.waist || '—'} · Kalça ${entry.hip || '—'} · Göğüs ${entry.chest || '—'} cm</span>
-            <button type="button" data-date="${entry.date}" aria-label="${formatDate(entry.date)} ölçümünü sil">Sil</button>
+            <strong class="measurement-date">${formatDate(entry.date)}</strong>
+            <div class="measurement-values">
+                <span>Bel <strong>${formatMeasurement(entry.waist)}</strong></span>
+                <span>Kalça <strong>${formatMeasurement(entry.hip)}</strong></span>
+                <span>Göğüs <strong>${formatMeasurement(entry.chest)}</strong></span>
+            </div>
+            <button class="measurement-delete-btn" type="button" data-date="${entry.date}" aria-label="${formatDate(entry.date)} ölçümünü sil" title="Ölçümü sil">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>
+            </button>
         </div>
     `).join('');
     container.querySelectorAll('button[data-date]').forEach(button => {
@@ -4114,6 +4420,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Arayüzü ağ isteklerini bekletmeden kullanılabilir hale getir.
     updateSummary();
+    renderTodayTrainingToggle();
     renderCatalog();
     renderTemplateList();
     hideLoading();
@@ -4123,7 +4430,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     Promise.allSettled([
-        loadCustomItems().then(renderCatalog),
+        loadCustomItems().then(() => {
+            renderCatalog();
+            renderTemplateList();
+        }),
         initializeTemplates().then(renderTemplateList),
         loadSettingsFromCloud(),
         initializeWeightLog(),
@@ -4144,17 +4454,36 @@ document.addEventListener('DOMContentLoaded', () => {
     // Yeni mobil düzende kartlar doğal akışta kalır; ek katlama sarmalayıcıları kullanılmaz.
 
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js').catch(error => {
-            console.warn('Service worker could not be registered:', error);
+        let reloadingForServiceWorker = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (reloadingForServiceWorker) return;
+            reloadingForServiceWorker = true;
+            window.location.reload();
         });
+        navigator.serviceWorker.register('./sw.js')
+            .then(registration => registration.update())
+            .catch(error => {
+                console.warn('Service worker could not be registered:', error);
+            });
     }
 
     ['targetKcal', 'targetProtein', 'targetCarb', 'targetFat'].forEach((id) => {
         const input = document.getElementById(id);
         if (!input) return;
-        input.readOnly = LOCK_TARGETS_TO_FIXED_PLAN;
+        input.readOnly = id === 'targetKcal' ? LOCK_TARGETS_TO_FIXED_PLAN : true;
         input.value = TARGETS[id.replace('target', '').toLowerCase()] ?? input.value;
     });
+    renderMacroPreferencesForm(MACRO_PREFERENCES);
+    document.getElementById('macroStrategy').addEventListener('change', () => {
+        updateMacroTargetFields({ applyPreset: true });
+    });
+    ['macroProteinPct', 'macroCarbPct', 'macroFatPct', 'targetKcal'].forEach(id => {
+        document.getElementById(id).addEventListener('input', () => {
+            updateMacroTargetFields();
+            if (id === 'targetKcal') updateDayTypeTargetFields();
+        });
+    });
+    document.getElementById('profileTrainingDays').addEventListener('input', updateDayTypeTargetFields);
     
     // Item type change
     document.querySelectorAll('input[name="itemType"]').forEach(radio => {
@@ -4193,6 +4522,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('customFiber').value = '';
             document.getElementById('customSugar').value = '';
             document.getElementById('customSodium').value = '';
+            document.getElementById('customConfidence').value = 'verified';
         });
     });
 
@@ -4337,6 +4667,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const customFiber = parseFloat(document.getElementById('customFiber').value) || 0;
             const customSugar = parseFloat(document.getElementById('customSugar').value) || 0;
             const customSodium = parseFloat(document.getElementById('customSodium').value) || 0;
+            const customConfidence = document.getElementById('customConfidence').value;
             const portion = getCurrentPortion(null, customType);
 
             if (!customName) {
@@ -4362,6 +4693,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 fiber_100: customFiber,
                 sugar_100: customSugar,
                 sodium_100: customSodium,
+                nutrition_confidence: ['verified', 'personal', 'estimated'].includes(customConfidence)
+                    ? customConfidence
+                    : 'verified',
                 schema_version: APP_SCHEMA_VERSION
             };
 
@@ -4399,6 +4733,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('customFiber').value = '';
             document.getElementById('customSugar').value = '';
             document.getElementById('customSodium').value = '';
+            document.getElementById('customConfidence').value = 'verified';
         } else {
             // Handle preset item
             if (!selectedItem) {
@@ -4461,13 +4796,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.target === confirmModal) settleConfirmation(false);
     });
 
-    ['dailyHunger', 'dailyEnergy'].forEach(id => {
-        document.getElementById(id).addEventListener('input', event => {
-            document.getElementById(`${id}Value`).textContent = `${event.target.value}/5`;
-        });
-    });
-    document.getElementById('saveDailyCheckin').addEventListener('click', () => saveDailyMeta());
-    document.getElementById('completeDayBtn').addEventListener('click', () => saveDailyMeta({ toggleComplete: true }));
+    document.getElementById('dashboardTrainingToggle').addEventListener('click', toggleTodayTraining);
 
     // Settings Modal
     const settingsModal = document.getElementById('settingsModal');
@@ -4501,9 +4830,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('targetCarb').value = TARGETS.carb;
         document.getElementById('targetFat').value = TARGETS.fat;
         document.getElementById('targetKcal').readOnly = LOCK_TARGETS_TO_FIXED_PLAN;
-        document.getElementById('targetProtein').readOnly = LOCK_TARGETS_TO_FIXED_PLAN;
-        document.getElementById('targetCarb').readOnly = LOCK_TARGETS_TO_FIXED_PLAN;
-        document.getElementById('targetFat').readOnly = LOCK_TARGETS_TO_FIXED_PLAN;
+        document.getElementById('targetProtein').readOnly = true;
+        document.getElementById('targetCarb').readOnly = true;
+        document.getElementById('targetFat').readOnly = true;
+        renderMacroPreferencesForm(MACRO_PREFERENCES);
 
         // Load profile values
         const prof = loadProfile();
@@ -4516,9 +4846,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (prof.steps) document.getElementById('profileSteps').value = prof.steps;
         if (prof.goalMode) document.getElementById('profileGoalMode').value = prof.goalMode;
         if (prof.targetWeight) document.getElementById('profileTargetWeight').value = prof.targetWeight;
-        document.getElementById('profileTrainingWeekdays').value = (prof.trainingWeekdays || []).join(',');
-        if (prof.trainingDayKcal) document.getElementById('trainingDayKcal').value = prof.trainingDayKcal;
-        if (prof.restDayKcal) document.getElementById('restDayKcal').value = prof.restDayKcal;
+        updateDayTypeTargetFields();
 
         // Öneri kutusunu gizle (yeniden hesaplanması gerekir)
         document.getElementById('goalRecommendation').style.display = 'none';
@@ -4531,17 +4859,24 @@ document.addEventListener('DOMContentLoaded', () => {
     cancelSettings.addEventListener('click', closeSettingsModal);
 
     saveSettingsBtn.addEventListener('click', async () => {
+        const macroPreferencesInput = getMacroPreferencesFormState();
+        if (!areMacroPreferencesValid(macroPreferencesInput)) {
+            showError('Protein, karbonhidrat ve yağ oranlarının toplamı %100 olmalı.');
+            return;
+        }
+        const macroPreferences = normalizeMacroPreferences(macroPreferencesInput);
+        const energyTarget = Number(document.getElementById('targetKcal').value);
+        const calculatedMacros = calculateMacroTargets(energyTarget, macroPreferences);
         const targetInput = {
-            kcal: Number(document.getElementById('targetKcal').value),
-            protein: Number(document.getElementById('targetProtein').value),
-            carb: Number(document.getElementById('targetCarb').value),
-            fat: Number(document.getElementById('targetFat').value)
+            kcal: energyTarget,
+            ...calculatedMacros
         };
         if (!areTargetsValid(targetInput)) {
             showError('Kalori ve makro hedeflerini izin verilen aralıklarda gir.');
             return;
         }
         const newTargets = normalizeTargets(targetInput);
+        updateDayTypeTargetFields();
 
         // Profil bilgilerini de kaydet
         const profileInput = {
@@ -4553,10 +4888,7 @@ document.addEventListener('DOMContentLoaded', () => {
             trainingDays: document.getElementById('profileTrainingDays').value,
             steps: document.getElementById('profileSteps').value,
             goalMode: document.getElementById('profileGoalMode').value,
-            targetWeight: document.getElementById('profileTargetWeight').value,
-            trainingWeekdays: document.getElementById('profileTrainingWeekdays').value,
-            trainingDayKcal: document.getElementById('trainingDayKcal').value,
-            restDayKcal: document.getElementById('restDayKcal').value
+            targetWeight: document.getElementById('profileTargetWeight').value
         };
         const hasProfileInput = Boolean(
             profileInput.gender || profileInput.age || profileInput.height || profileInput.weight
@@ -4572,10 +4904,11 @@ document.addEventListener('DOMContentLoaded', () => {
             profileToSave = normalizeProfile(profileInput);
         }
 
+        saveMacroPreferences(macroPreferences);
         saveTargets(newTargets);
         if (hasProfileInput) saveProfile(profileToSave);
 
-        const cloudSaved = await saveSettingsToCloud(newTargets, profileToSave);
+        const cloudSaved = await saveSettingsToCloud(newTargets, profileToSave, macroPreferences);
         if (!cloudSaved) {
             showError('Ayarlar Firebase\'e kaydedilemedi. Firestore kurallarini kontrol edin.');
         }
@@ -4642,19 +4975,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const isDarkMode = localStorage.getItem(DARK_MODE_KEY) === 'true';
     if (isDarkMode) {
         document.body.classList.add('dark-mode');
-        darkModeBtn.textContent = 'Açık tema';
-        darkModeBtn.title = 'Açık tema';
-    } else {
-        darkModeBtn.textContent = 'Koyu tema';
-        darkModeBtn.title = 'Koyu tema';
     }
+    updateThemeControl(isDarkMode);
 
     darkModeBtn.addEventListener('click', () => {
         document.body.classList.toggle('dark-mode');
         const isNowDark = document.body.classList.contains('dark-mode');
 
-        darkModeBtn.textContent = isNowDark ? 'Açık tema' : 'Koyu tema';
-        darkModeBtn.title = darkModeBtn.textContent;
+        updateThemeControl(isNowDark);
         localStorage.setItem(DARK_MODE_KEY, isNowDark);
     });
 
@@ -4672,9 +5000,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (profile.steps) document.getElementById('profileSteps').value = profile.steps;
     if (profile.goalMode) document.getElementById('profileGoalMode').value = profile.goalMode;
     if (profile.targetWeight) document.getElementById('profileTargetWeight').value = profile.targetWeight;
-    document.getElementById('profileTrainingWeekdays').value = (profile.trainingWeekdays || []).join(',');
-    if (profile.trainingDayKcal) document.getElementById('trainingDayKcal').value = profile.trainingDayKcal;
-    if (profile.restDayKcal) document.getElementById('restDayKcal').value = profile.restDayKcal;
+    updateDayTypeTargetFields();
 
     // Hedefleri Hesapla butonu
     document.getElementById('calculateGoals').addEventListener('click', calculateAndShowGoals);
@@ -4847,6 +5173,12 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('createTemplateBtn').addEventListener('click', showTemplateForm);
     document.getElementById('backToTemplates').addEventListener('click', hideTemplateForm);
     document.getElementById('saveTemplate').addEventListener('click', saveCurrentTemplate);
+    document.getElementById('templateKind').addEventListener('change', event => {
+        const isRecipe = event.target.value === 'recipe';
+        document.getElementById('recipeSettings').hidden = !isRecipe;
+        document.querySelector('label[for="templateName"]').textContent = isRecipe ? 'Tarif adı' : 'Öğün adı';
+        document.getElementById('saveTemplate').textContent = isRecipe ? 'Tarifi kaydet' : 'Öğünü kaydet';
+    });
 
     // Template search
     const tplSearchInput = document.getElementById('tplSearchInput');

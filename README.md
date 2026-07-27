@@ -1,4 +1,4 @@
-# Kalori ve Makro Takip
+# Denge — Beslenme ve Makro Takibi
 
 HTML, CSS ve Vanilla JavaScript ile geliştirilmiş; verilerini Firebase Firestore'da
 saklayan, kurulabilir bir kalori ve makro takip uygulaması.

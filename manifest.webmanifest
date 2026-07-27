@@ -1,7 +1,7 @@
 {
-  "name": "Kalori ve Makro Takip",
-  "short_name": "Kalori Takip",
-  "description": "Kalori, makro ve kilo takibi",
+  "name": "Denge — Beslenme ve Makro Takibi",
+  "short_name": "Denge",
+  "description": "Beslenme, makro, ölçüm ve ilerleme takibi",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#f6f8f7",

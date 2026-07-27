@@ -11,6 +11,16 @@ import {
     suggestProtein,
     sumLogs
 } from '../lib/nutrition.js';
+import {
+    calculateDayTypeEnergyTargets,
+    calculateGoalTarget,
+    calculateMacroTargets,
+    calculateRecipeNutrition,
+    getMacroGuidance,
+    inferNutritionConfidence,
+    normalizeMacroPreferences,
+    resolveDayEnergyTarget
+} from '../lib/planning.js';
 
 assert.deepEqual(
     calculateNutrition({ kcal_100: 200, protein_100: 10, carb_100: 20, fat_100: 5 }, 150),
@@ -41,6 +51,57 @@ assert.equal(suggestProtein(75, 'maintain'), 135);
 assert.equal(suggestFat(75), 60);
 assert.equal(suggestCarb(2320, 150, 60), 295);
 assert.equal(suggestCarb(2563, 212, 85), 238);
+assert.equal(calculateGoalTarget(2500, 'cut_moderate'), 2325);
+assert.equal(calculateGoalTarget(2500, 'maintain'), 2500);
+assert.deepEqual(
+    calculateMacroTargets(2320, { strategy: 'protein_focused' }),
+    { protein: 203, carb: 203, fat: 77 }
+);
+assert.deepEqual(
+    calculateDayTypeEnergyTargets(2105, 3),
+    { trainingDayKcal: 2250, restDayKcal: 2000 }
+);
+assert.deepEqual(
+    calculateDayTypeEnergyTargets(2105, 0),
+    { trainingDayKcal: 2105, restDayKcal: 2105 }
+);
+assert.equal(resolveDayEnergyTarget({
+    baseKcal: 2200,
+    trainingDayKcal: 2400,
+    restDayKcal: 2050,
+    trained: true
+}), 2400);
+assert.equal(resolveDayEnergyTarget({
+    baseKcal: 2200,
+    trainingDayKcal: 2400,
+    restDayKcal: 2050,
+    trained: false
+}), 2050);
+assert.equal(resolveDayEnergyTarget({
+    baseKcal: 2200,
+    trainingDayKcal: 0,
+    restDayKcal: 0,
+    trained: false
+}), 2200);
+assert.deepEqual(
+    normalizeMacroPreferences({ strategy: 'manual', proteinPct: 40, carbPct: 30, fatPct: 30 }),
+    { strategy: 'manual', proteinPct: 40, carbPct: 30, fatPct: 30 }
+);
+assert.deepEqual(
+    calculateRecipeNutrition([
+        { kcal: 200, protein: 30, carb: 5, fat: 6 },
+        { kcal: 300, protein: 10, carb: 50, fat: 8 }
+    ], 500, 300),
+    { kcal: 300, protein: 24, carb: 33, fat: 8.4, fiber: 0, sugar: 0, sodium: 0 }
+);
+assert.equal(inferNutritionConfidence({ name: 'Ton Balıklı Salata' }), 'estimated');
+assert.match(
+    getMacroGuidance(
+        { protein: 100, carb: 190, fat: 75 },
+        { protein: 160, carb: 200, fat: 80 }
+    ),
+    /yağ hedefin dolmak üzere/i
+);
 assert.equal(calcMovingAverage([
     { weight: 80 }, { weight: 79 }, { weight: 78 }
 ], 2), 78.5);
