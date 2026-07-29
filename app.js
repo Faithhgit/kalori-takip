@@ -471,8 +471,8 @@ function updateDayTypeTargetFields() {
     return dayTargets;
 }
 
-// Hesapla ve göster
-function calculateAndShowGoals() {
+// Hesapla, aktif hedeflere uygula ve kaydet
+async function calculateAndShowGoals() {
     const profileInput = {
         gender: document.getElementById('profileGender').value,
         age: document.getElementById('profileAge').value,
@@ -512,6 +512,11 @@ function calculateAndShowGoals() {
     document.getElementById('targetCarb').value = carb;
     updateDayTypeTargetFields();
 
+    const calculatedTargets = { kcal: targetKcal, protein, carb, fat };
+    saveTargets(calculatedTargets);
+    document.getElementById('targetKcalDisplay').textContent = targetKcal;
+    const cloudSaved = await saveSettingsToCloud(calculatedTargets, profile, macroPreferences);
+
     // Öneri kutusunu göster
     const modeLabels = {
         cut_moderate: 'Dengeli yağ kaybı',
@@ -532,6 +537,12 @@ function calculateAndShowGoals() {
         Karbonhidrat: <strong>${carb}g</strong>
     `;
     recEl.style.display = 'block';
+    showError(
+        cloudSaved
+            ? 'Plan hesaplandı ve hedeflerine uygulandı.'
+            : 'Plan bu cihazda uygulandı; Firebase senkronizasyonu tamamlanamadı.',
+        cloudSaved ? 'success' : 'error'
+    );
 }
 
 function getItemByIdOrName(itemId, itemName) {
@@ -2155,6 +2166,10 @@ function updateSummary() {
     document.getElementById('currentKcal').textContent = totals.kcal;
     document.getElementById('targetKcalDisplay').textContent = calorieTarget;
     const percentage = Math.min((totals.kcal / calorieTarget) * 100, 100);
+    const actualPercentage = calorieTarget > 0 ? (totals.kcal / calorieTarget) * 100 : 0;
+    const energyStatus = totals.kcal > calorieTarget
+        ? 'over'
+        : actualPercentage < 70 ? 'low' : 'on-target';
 
     // Update simple progress bar
     const calorieBar = document.getElementById('calorieBar');
@@ -2162,7 +2177,9 @@ function updateSummary() {
     const calorieRing = document.getElementById('calorieRing');
     if (calorieRing) {
         calorieRing.style.setProperty('--progress', percentage.toFixed(1));
-        calorieRing.classList.toggle('is-complete', totals.kcal >= calorieTarget);
+        calorieRing.classList.remove('is-complete', 'is-low', 'is-on-target', 'is-over');
+        calorieRing.classList.add(`is-${energyStatus}`);
+        calorieRing.closest('.summary-card')?.setAttribute('data-energy-status', energyStatus);
     }
     const ringStatus = document.getElementById('calorieRingStatus');
     if (ringStatus) {
@@ -2262,16 +2279,17 @@ function renderChart() {
         }
     }
 
-    const chartWidth = 680;
-    const chartHeight = 272;
-    const chartLeft = 44;
-    const chartRight = 14;
-    const chartTop = 30;
-    const chartBottom = 42;
+    const compactChart = window.matchMedia('(max-width: 760px)').matches;
+    const chartWidth = compactChart ? 360 : 680;
+    const chartHeight = compactChart ? 236 : 272;
+    const chartLeft = compactChart ? 34 : 44;
+    const chartRight = compactChart ? 8 : 14;
+    const chartTop = compactChart ? 27 : 30;
+    const chartBottom = compactChart ? 38 : 42;
     const chartPlotWidth = chartWidth - chartLeft - chartRight;
     const chartPlotHeight = chartHeight - chartTop - chartBottom;
     const chartMax = Math.max(500, Math.ceil(maxKcal / 500) * 500);
-    const chartBarGap = 18;
+    const chartBarGap = compactChart ? 8 : 18;
     const chartBarWidth = (chartPlotWidth - (chartBarGap * 6)) / 7;
     const chartY = value => chartTop + chartPlotHeight - (Math.min(value, chartMax) / chartMax) * chartPlotHeight;
     const chartGridValues = [chartMax, Math.round(chartMax / 2), 0];
@@ -6027,6 +6045,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Settings Modal
     const settingsModal = document.getElementById('settingsModal');
     const settingsBtn = document.getElementById('settingsBtn');
+    const brandHome = document.getElementById('brandHome');
     const closeSettings = document.getElementById('closeSettings');
     const cancelSettings = document.getElementById('cancelSettings');
     const saveSettingsBtn = document.getElementById('saveSettings');
@@ -6039,6 +6058,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         target?.scrollIntoView({ block: 'nearest' });
     };
+
+    brandHome?.addEventListener('click', () => {
+        if (typeof window.switchTab === 'function') window.switchTab('dashboard');
+    });
 
     settingsAccordions.forEach(section => {
         section.addEventListener('toggle', () => {
@@ -6167,13 +6190,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const cloudSaved = await saveSettingsToCloud(newTargets, profileToSave, macroPreferences);
         if (!cloudSaved) {
-            showError('Ayarlar Firebase\'e kaydedilemedi. Firestore kurallarini kontrol edin.');
+            showError('Ayarlar bu cihazda kaydedildi; Firebase senkronizasyonu tamamlanamadı.');
+        } else {
+            showError('Ayarların kaydedildi ve hedeflerin güncellendi.', 'success');
         }
 
         // Update UI
         document.getElementById('targetKcalDisplay').textContent = newTargets.kcal;
 
         closeSettingsModal();
+    });
+
+    document.getElementById('applyDailyTargets')?.addEventListener('click', () => {
+        saveSettingsBtn.click();
     });
 
     resetAllDataBtn.addEventListener('click', async () => {
@@ -6311,19 +6340,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Logs Filter Event Listeners ---
     const quickDateButtons = [
-        { element: document.getElementById('quickTodayBtn'), days: 1 },
-        { element: document.getElementById('quickWeekBtn'), days: 7 },
-        { element: document.getElementById('quickMonthBtn'), days: 30 }
+        { element: document.getElementById('quickTodayBtn'), from: today, to: today },
+        { element: document.getElementById('quickYesterdayBtn'), from: getDateDaysAgo(1), to: getDateDaysAgo(1) },
+        { element: document.getElementById('quickWeekBtn'), from: getDateDaysAgo(6), to: today },
+        { element: document.getElementById('quickMonthBtn'), from: getDateDaysAgo(29), to: today }
     ];
+    const logsRangePicker = document.getElementById('logsRangePicker');
+    const logsRangeLabel = document.getElementById('logsRangeLabel');
+
+    const syncLogsRangeLabel = () => {
+        if (!logsRangeLabel) return;
+        const from = logsDateFilterInput?.value || '';
+        const to = logsDateToFilterInput?.value || '';
+        if (!from && !to) {
+            logsRangeLabel.textContent = 'Tarih seç';
+        } else if (from === today && to === today) {
+            logsRangeLabel.textContent = 'Bugün';
+        } else if (from === getDateDaysAgo(1) && to === getDateDaysAgo(1)) {
+            logsRangeLabel.textContent = 'Dün';
+        } else if (from && to && from !== to) {
+            logsRangeLabel.textContent = `${formatDate(from)} – ${formatDate(to)}`;
+        } else {
+            logsRangeLabel.textContent = formatDate(from || to);
+        }
+    };
 
     const syncQuickDateButtons = () => {
         const from = logsDateFilterInput?.value || '';
         const to = logsDateToFilterInput?.value || '';
-        quickDateButtons.forEach(({ element, days }) => {
+        quickDateButtons.forEach(({ element, from: expectedFrom, to: expectedTo }) => {
             if (!element) return;
-            const expectedFrom = days === 1 ? today : getDateDaysAgo(days - 1);
-            element.classList.toggle('active', from === expectedFrom && to === today);
+            element.classList.toggle('active', from === expectedFrom && to === expectedTo);
         });
+        syncLogsRangeLabel();
         const copySelectedButton = document.getElementById('copyFilteredDayBtn');
         if (copySelectedButton) {
             const canCopySelectedDay = Boolean(from && to && from === to && from !== today);
@@ -6339,48 +6388,56 @@ document.addEventListener('DOMContentLoaded', () => {
     syncQuickDateButtons();
 
     const refreshDateRangeFilter = async () => {
-        logsDateFilter = logsDateFilterInput?.value || '';
-        logsDateToFilter = logsDateToFilterInput?.value || '';
+        let from = logsDateFilterInput?.value || '';
+        let to = logsDateToFilterInput?.value || '';
+        if (from && to && from > to) {
+            [from, to] = [to, from];
+            logsDateFilterInput.value = from;
+            logsDateToFilterInput.value = to;
+        }
+        logsDateFilter = from;
+        logsDateToFilter = to;
         await loadLogsForRange(logsDateFilter, logsDateToFilter);
         logsVisibleCount = LOGS_PAGE_SIZE;
         syncLogsDateFilterPlaceholder();
         syncQuickDateButtons();
         renderLogs();
+        if (logsRangePicker) logsRangePicker.open = false;
     };
 
-    quickDateButtons.forEach(({ element, days }) => {
+    quickDateButtons.forEach(({ element, from, to }) => {
         element?.addEventListener('click', async () => {
-            if (logsDateFilterInput) {
-                logsDateFilterInput.value = days === 1 ? today : getDateDaysAgo(days - 1);
-            }
-            if (logsDateToFilterInput) logsDateToFilterInput.value = today;
+            if (logsDateFilterInput) logsDateFilterInput.value = from;
+            if (logsDateToFilterInput) logsDateToFilterInput.value = to;
             await refreshDateRangeFilter();
         });
     });
 
     if (logsDateFilterInput) {
-        logsDateFilterInput.addEventListener('change', refreshDateRangeFilter);
-        logsDateFilterInput.addEventListener('input', syncLogsDateFilterPlaceholder);
-    }
-    if (logsDateToFilterInput) {
-        logsDateToFilterInput.addEventListener('change', refreshDateRangeFilter);
-        logsDateToFilterInput.addEventListener('input', () => {
+        logsDateFilterInput.addEventListener('change', () => {
             syncLogsDateFilterPlaceholder();
+            syncQuickDateButtons();
+        });
+        logsDateFilterInput.addEventListener('input', () => {
+            syncLogsDateFilterPlaceholder();
+            syncLogsRangeLabel();
         });
     }
+    if (logsDateToFilterInput) {
+        logsDateToFilterInput.addEventListener('change', syncQuickDateButtons);
+        logsDateToFilterInput.addEventListener('input', () => {
+            syncLogsDateFilterPlaceholder();
+            syncLogsRangeLabel();
+        });
+    }
+    document.getElementById('applyLogsDateRange')?.addEventListener('click', refreshDateRangeFilter);
 
     const clearLogsDateFilterBtn = document.getElementById('clearLogsDateFilter');
     if (clearLogsDateFilterBtn) {
-        clearLogsDateFilterBtn.addEventListener('click', () => {
-            logsDateFilter = '';
-            logsDateToFilter = '';
-            dateFilteredLogs = [];
-            logsVisibleCount = LOGS_PAGE_SIZE;
-            if (logsDateFilterInput) logsDateFilterInput.value = '';
-            if (logsDateToFilterInput) logsDateToFilterInput.value = '';
-            syncLogsDateFilterPlaceholder();
-            syncQuickDateButtons();
-            renderLogs();
+        clearLogsDateFilterBtn.addEventListener('click', async () => {
+            if (logsDateFilterInput) logsDateFilterInput.value = today;
+            if (logsDateToFilterInput) logsDateToFilterInput.value = today;
+            await refreshDateRangeFilter();
         });
     }
 

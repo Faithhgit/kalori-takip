@@ -9956,3 +9956,226 @@ body .dashboard-date-nav input[type="date"] {
         white-space: nowrap;
     }
 }
+
+/* Settings persistence, compact date range and mobile progress stability */
+.brand {
+    padding: 0;
+    background: transparent;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.brand:hover .brand-name,
+.brand:focus-visible .brand-name {
+    color: var(--violet);
+}
+
+#settingsModal .modal-footer {
+    position: relative;
+    z-index: 4;
+    flex: 0 0 auto;
+    background: color-mix(in srgb, var(--surface) 96%, transparent);
+    box-shadow: 0 -10px 24px color-mix(in srgb, var(--bg) 18%, transparent);
+    backdrop-filter: blur(14px);
+}
+
+.settings-apply-targets {
+    width: 100%;
+    margin-top: 2px;
+}
+
+.quick-date-group {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.date-filter-reset {
+    display: block;
+    color: var(--violet);
+    cursor: pointer;
+}
+
+.logs-range-picker {
+    position: relative;
+}
+
+.logs-range-picker > summary {
+    display: block;
+    list-style: none;
+    cursor: pointer;
+}
+
+.logs-range-picker > summary::-webkit-details-marker {
+    display: none;
+}
+
+.logs-range-picker > summary .date-input-shell {
+    min-height: 48px;
+    justify-content: flex-start;
+}
+
+.logs-range-picker > summary .date-input-shell > span {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+}
+
+.logs-range-picker > summary small,
+.logs-range-picker > summary strong {
+    display: block;
+}
+
+.logs-range-picker > summary small {
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 650;
+}
+
+.logs-range-picker > summary strong {
+    overflow: hidden;
+    color: var(--text);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.logs-range-picker[open] > summary .date-input-shell {
+    border-color: color-mix(in srgb, var(--violet) 45%, var(--border));
+}
+
+.logs-range-popover {
+    margin-top: 8px;
+    padding: 10px;
+    display: grid;
+    gap: 10px;
+    background: color-mix(in srgb, var(--surface) 88%, var(--surface-soft));
+    border: 1px solid var(--border);
+    border-radius: var(--ui-radius-item);
+}
+
+.logs-range-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.logs-range-fields .logs-date-input {
+    width: 100%;
+    min-width: 0;
+}
+
+.calorie-ring.is-low {
+    --ring-start: #fff4c5;
+    --ring-accent: #f5c85a;
+    --ring-end: #d99c2b;
+}
+
+.calorie-ring.is-on-target {
+    --ring-start: #e9fff8;
+    --ring-accent: #8ee8cf;
+    --ring-end: #47bea0;
+}
+
+.calorie-ring.is-over {
+    --ring-start: #ffe1e5;
+    --ring-accent: #ff8e9c;
+    --ring-end: #e4566b;
+}
+
+.summary-card[data-energy-status="low"] {
+    border-color: color-mix(in srgb, var(--carb) 42%, var(--border)) !important;
+}
+
+.summary-card[data-energy-status="over"] {
+    border-color: color-mix(in srgb, var(--danger) 55%, var(--border)) !important;
+}
+
+.summary-card[data-energy-status="low"] .calorie-ring-status {
+    background: color-mix(in srgb, var(--carb) 22%, transparent);
+    border-color: color-mix(in srgb, var(--carb) 40%, transparent);
+}
+
+.summary-card[data-energy-status="over"] .calorie-ring-status {
+    background: color-mix(in srgb, var(--danger) 22%, transparent);
+    border-color: color-mix(in srgb, var(--danger) 42%, transparent);
+}
+
+@media (max-width: 760px) {
+    #settingsModal .modal-footer {
+        padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    }
+
+    #settingsModal .modal-footer .btn {
+        min-width: 0;
+        flex: 1;
+    }
+
+    body[data-page="progress"] :is(.weight-card, .chart-section, .progress-details) {
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    body[data-page="progress"] .weekly-chart-wrap {
+        width: 100%;
+        min-width: 0;
+        padding-inline: 0;
+        overflow: hidden;
+    }
+
+    body[data-page="progress"] .weekly-chart {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    body[data-page="progress"] :is(
+        .weight-input-row,
+        .measurement-form,
+        .photo-progress-form
+    ) {
+        width: 100%;
+        min-width: 0;
+        padding-inline: 0;
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    body[data-page="progress"] :is(
+        .weight-input-row input,
+        .measurement-form input,
+        .photo-progress-form input,
+        .measurement-form button,
+        .photo-progress-form button,
+        .photo-file-picker
+    ) {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        grid-column: 1;
+    }
+
+    body[data-page="progress"] .photo-file-picker strong {
+        min-width: 0;
+    }
+
+    body[data-page="progress"] :is(.measurement-list, .photo-storage-note) {
+        margin-inline: 0;
+    }
+
+    body[data-page="progress"] .progress-photo-grid {
+        padding-inline: 0;
+    }
+}
+
+@media (max-width: 520px) {
+    .logs-range-fields {
+        grid-template-columns: 1fr;
+    }
+
+    .quick-date-btn {
+        padding-inline: 4px;
+        font-size: 9px !important;
+    }
+}

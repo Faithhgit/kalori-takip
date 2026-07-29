@@ -120,9 +120,9 @@ assert.ok(
     'All diary add flows should use the shared success notification.'
 );
 assert.match(css, /\.toast-action\s*\{/, 'The success notification should provide a diary shortcut.');
-assert.match(html, /styles\.css\?v=59/, 'The current stylesheet version should bypass stale app caches.');
-assert.match(html, /router\.js\?v=59/, 'The current router version should bypass stale app caches.');
-assert.match(html, /app\.js\?v=59/, 'The current application version should bypass stale app caches.');
+assert.match(html, /styles\.css\?v=60/, 'The current stylesheet version should bypass stale app caches.');
+assert.match(html, /router\.js\?v=60/, 'The current router version should bypass stale app caches.');
+assert.match(html, /app\.js\?v=60/, 'The current application version should bypass stale app caches.');
 assert.match(html, /class="notification-stack"/, 'Recent notifications should render in a shared stack.');
 assert.match(css, /\.app-toast:nth-child\(3\)/, 'The notification stack should visually retain three items.');
 assert.match(css, /\.meal-log-grid\s*\{/, 'Diary entries should use the responsive meal card grid.');
@@ -162,6 +162,36 @@ assert.doesNotMatch(
     app,
     /controllerchange[\s\S]{0,240}location\.reload/,
     'Service worker updates should not reload the page during navigation.'
+);
+for (const id of [
+    'brandHome',
+    'applyDailyTargets',
+    'quickYesterdayBtn',
+    'logsRangePicker',
+    'logsRangeLabel',
+    'applyLogsDateRange'
+]) {
+    assert.ok(ids.includes(id), `${id} updated interaction should exist.`);
+}
+assert.match(
+    app,
+    /saveSettingsToCloud\(calculatedTargets,\s*profile,\s*macroPreferences\)/,
+    'Calculated profile goals should be persisted immediately.'
+);
+assert.match(
+    css,
+    /body\[data-page="progress"\] \.weekly-chart\s*\{[\s\S]*?min-width:\s*0/,
+    'The weekly chart should fit the mobile card without horizontal scrolling.'
+);
+assert.match(
+    app,
+    /const compactChart = window\.matchMedia\('\(max-width: 760px\)'\)\.matches/,
+    'The weekly chart should render at a readable mobile-native scale.'
+);
+assert.match(
+    css,
+    /\.calorie-ring\.is-over/,
+    'Daily energy should expose an over-target warning state.'
 );
 
 console.log('ui structure audit passed');

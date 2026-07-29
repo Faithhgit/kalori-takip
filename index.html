@@ -11,12 +11,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=59">
+    <link rel="stylesheet" href="styles.css?v=60">
 </head>
 <body>
     <header class="app-header">
         <div class="app-header-inner">
-            <div class="brand">
+            <button class="brand" id="brandHome" type="button" aria-label="Özet ekranına dön">
                 <div class="brand-mark" aria-hidden="true">
                     <svg viewBox="0 0 32 32"><path d="M16 27c6 0 10-4.8 10-11.1C26 9.8 22 6 16 6S6 9.8 6 15.9C6 22.2 10 27 16 27Z"/><path d="M16 7c.2-3 2.2-5 5.2-5"/><path d="m11.5 16.4 3.1 3.2 6.4-7"/></svg>
                 </div>
@@ -24,7 +24,7 @@
                     <span class="brand-name">Denge</span>
                     <span class="brand-tagline">Beslenme ve makro takibi</span>
                 </div>
-            </div>
+            </button>
             <nav class="tabs-container" aria-label="Ana navigasyon">
                 <button class="tab-button active" data-tab="dashboard" onclick="switchTab('dashboard')">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h6V4H4v9ZM14 20h6v-9h-6v9ZM4 20h6v-3H4v3ZM14 7h6V4h-6v3Z"/></svg>
@@ -220,6 +220,7 @@
                     </div>
                 </div>
                 <p class="day-target-note">Haftalık ortalama enerji hedefin korunarak otomatik hesaplanır.</p>
+                <button class="btn btn-primary settings-apply-targets" id="applyDailyTargets" type="button">Günlük hedefleri uygula</button>
                     </div>
                 </details>
 
@@ -600,30 +601,38 @@
                                         <strong>Gösterilecek dönem</strong>
                                         <span>Günlük kayıtlarını tarih aralığına göre süz</span>
                                     </div>
-                                    <button class="date-filter-reset logs-clear-btn" id="clearLogsDateFilter" type="button">Temizle</button>
+                                    <button class="date-filter-reset logs-clear-btn" id="clearLogsDateFilter" type="button">Bugüne dön</button>
                                 </div>
                                 <div class="quick-date-group" aria-label="Hızlı tarih seçimi">
                                     <button class="quick-date-btn active" id="quickTodayBtn" type="button">Bugün</button>
+                                    <button class="quick-date-btn" id="quickYesterdayBtn" type="button">Dün</button>
                                     <button class="quick-date-btn" id="quickWeekBtn" type="button">Son 7 gün</button>
                                     <button class="quick-date-btn" id="quickMonthBtn" type="button">Son 30 gün</button>
                                 </div>
-                                <div class="logs-filter-group">
-                                    <label class="logs-filter-field" for="logsDateFilter">
-                                        <span>Başlangıç</span>
+                                <details class="logs-range-picker" id="logsRangePicker">
+                                    <summary>
                                         <span class="date-input-shell">
                                             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>
-                                            <input type="date" id="logsDateFilter" class="logs-date-input" aria-label="Başlangıç tarihi">
+                                            <span>
+                                                <small>Tarih aralığı</small>
+                                                <strong id="logsRangeLabel">Bugün</strong>
+                                            </span>
                                         </span>
-                                    </label>
-                                    <span class="date-range-arrow" aria-hidden="true">→</span>
-                                    <label class="logs-filter-field" for="logsDateToFilter">
-                                        <span>Bitiş</span>
-                                        <span class="date-input-shell">
-                                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>
-                                            <input type="date" id="logsDateToFilter" class="logs-date-input" aria-label="Bitiş tarihi">
-                                        </span>
-                                    </label>
-                                </div>
+                                    </summary>
+                                    <div class="logs-range-popover">
+                                        <div class="logs-range-fields">
+                                            <label class="logs-filter-field" for="logsDateFilter">
+                                                <span>İlk gün</span>
+                                                <input type="date" id="logsDateFilter" class="logs-date-input" aria-label="İlk gün">
+                                            </label>
+                                            <label class="logs-filter-field" for="logsDateToFilter">
+                                                <span>Son gün</span>
+                                                <input type="date" id="logsDateToFilter" class="logs-date-input" aria-label="Son gün">
+                                            </label>
+                                        </div>
+                                        <button class="btn btn-primary" id="applyLogsDateRange" type="button">Aralığı uygula</button>
+                                    </div>
+                                </details>
                             </div>
                             <div class="logs-copy-actions">
                                 <button class="toolbar-action" id="copyYesterdayBtn" type="button">
@@ -1086,7 +1095,7 @@
         </div>
     </div>
 
-    <script src="router.js?v=59"></script>
-    <script type="module" src="app.js?v=59"></script>
+    <script src="router.js?v=60"></script>
+    <script type="module" src="app.js?v=60"></script>
 </body>
 </html>
