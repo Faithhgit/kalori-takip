@@ -120,9 +120,9 @@ assert.ok(
     'All diary add flows should use the shared success notification.'
 );
 assert.match(css, /\.toast-action\s*\{/, 'The success notification should provide a diary shortcut.');
-assert.match(html, /styles\.css\?v=60/, 'The current stylesheet version should bypass stale app caches.');
-assert.match(html, /router\.js\?v=60/, 'The current router version should bypass stale app caches.');
-assert.match(html, /app\.js\?v=60/, 'The current application version should bypass stale app caches.');
+assert.match(html, /styles\.css\?v=61/, 'The current stylesheet version should bypass stale app caches.');
+assert.match(html, /router\.js\?v=61/, 'The current router version should bypass stale app caches.');
+assert.match(html, /app\.js\?v=61/, 'The current application version should bypass stale app caches.');
 assert.match(html, /class="notification-stack"/, 'Recent notifications should render in a shared stack.');
 assert.match(css, /\.app-toast:nth-child\(3\)/, 'The notification stack should visually retain three items.');
 assert.match(css, /\.meal-log-grid\s*\{/, 'Diary entries should use the responsive meal card grid.');
@@ -192,6 +192,16 @@ assert.match(
     css,
     /\.calorie-ring\.is-over/,
     'Daily energy should expose an over-target warning state.'
+);
+assert.equal(
+    [...html.matchAll(/class="progress-date-field"/g)].length,
+    3,
+    'All three progress date controls should share the iOS width fix.'
+);
+assert.match(
+    css,
+    /\.progress-date-field::\-webkit-date-and-time-value[\s\S]*?min-width:\s*0/,
+    'The native iOS date value should not force the progress forms wider.'
 );
 
 console.log('ui structure audit passed');

@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=60">
+    <link rel="stylesheet" href="styles.css?v=61">
 </head>
 <body>
     <header class="app-header">
@@ -505,7 +505,7 @@
                     </div>
                     <div class="weight-input-row">
                         <input type="number" id="weightInput" aria-label="Kilo" placeholder="Kilo (kg)" min="30" max="250" step="0.1">
-                        <input type="date" id="weightDate" aria-label="Kilo kayıt tarihi">
+                        <input type="date" id="weightDate" class="progress-date-field" aria-label="Kilo kayıt tarihi">
                         <button class="btn btn-primary btn-sm" id="saveWeight" type="button">Kaydet</button>
                     </div>
                     <div id="weightStats" class="weight-stats" style="display:none;">
@@ -538,7 +538,7 @@
                     <details class="progress-details">
                         <summary>Vücut ölçüleri</summary>
                         <div class="measurement-form">
-                            <input type="date" id="measurementDate" aria-label="Ölçüm tarihi">
+                            <input type="date" id="measurementDate" class="progress-date-field" aria-label="Ölçüm tarihi">
                             <input type="number" id="measurementWaist" min="30" max="250" step="0.1" placeholder="Bel (cm)" aria-label="Bel çevresi">
                             <input type="number" id="measurementHip" min="30" max="250" step="0.1" placeholder="Kalça (cm)" aria-label="Kalça çevresi">
                             <input type="number" id="measurementChest" min="30" max="250" step="0.1" placeholder="Göğüs (cm)" aria-label="Göğüs çevresi">
@@ -549,7 +549,7 @@
                     <details class="progress-details">
                         <summary>Fotoğraflı ilerleme</summary>
                         <div class="photo-progress-form">
-                            <input type="date" id="progressPhotoDate" aria-label="Fotoğraf tarihi">
+                            <input type="date" id="progressPhotoDate" class="progress-date-field" aria-label="Fotoğraf tarihi">
                             <label class="photo-file-picker" for="progressPhotoInput">
                                 <span>Fotoğraf seç</span>
                                 <strong id="progressPhotoFileName">JPG, PNG veya WebP</strong>
@@ -1095,7 +1095,7 @@
         </div>
     </div>
 
-    <script src="router.js?v=60"></script>
-    <script type="module" src="app.js?v=60"></script>
+    <script src="router.js?v=61"></script>
+    <script type="module" src="app.js?v=61"></script>
 </body>
 </html>

@@ -10179,3 +10179,49 @@ body .dashboard-date-nav input[type="date"] {
         font-size: 9px !important;
     }
 }
+
+/* iOS keeps an intrinsic width on native date controls. Constrain both the
+   input box and WebKit's internal date value in all progress forms. */
+.progress-date-field {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.progress-date-field::-webkit-date-and-time-value {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    text-align: left;
+}
+
+@media (max-width: 760px) {
+    body[data-page="progress"] .progress-date-field {
+        inline-size: 100% !important;
+        min-inline-size: 0 !important;
+        max-inline-size: 100% !important;
+        padding-inline: 11px !important;
+        overflow: hidden;
+        -webkit-appearance: none;
+        appearance: none;
+    }
+
+    body[data-page="progress"] .progress-date-field::-webkit-date-and-time-value {
+        inline-size: 100%;
+        min-inline-size: 0;
+        max-inline-size: 100%;
+        overflow: hidden;
+        text-align: left;
+        white-space: nowrap;
+    }
+
+    body[data-page="progress"] :is(
+        .weight-input-row,
+        .measurement-form,
+        .photo-progress-form
+    ) > .progress-date-field {
+        justify-self: stretch;
+    }
+}
